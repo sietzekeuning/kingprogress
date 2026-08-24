@@ -4,6 +4,13 @@
     "directories": {
         "output": "release"
     },
+    "publish": [
+        {
+            "provider": "github",
+            "owner": "sietzekeuning",
+            "repo": "progressy"
+        }
+    ],
     "files": [
         "dist/**/*",
         "src/assets/**/*",

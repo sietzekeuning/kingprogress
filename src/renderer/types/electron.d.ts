@@ -80,6 +80,17 @@ export interface RepoSummary {
   updatedAt: string;
 }
 
+export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'unsupported';
+
+export interface UpdateState {
+  status: UpdateStatus;
+  currentVersion: string;
+  newVersion: string | null;
+  percent: number;
+  message: string | null;
+  checkedAt: number | null;
+}
+
 export interface ElectronAPI {
   getAuthState: () => Promise<AuthState>;
   submitToken: (token: string) => Promise<Account>;
@@ -98,6 +109,10 @@ export interface ElectronAPI {
   dismissAction: (key: string) => Promise<boolean>;
   dismissAll: () => Promise<boolean>;
 
+  getUpdateState: () => Promise<UpdateState>;
+  checkForUpdates: () => Promise<UpdateState>;
+  installUpdate: () => Promise<boolean>;
+
   popupEmpty: () => Promise<boolean>;
   setPointerInteractive: (interactive: boolean) => Promise<boolean>;
   resizeWindow: (width: number, height: number) => Promise<boolean>;
@@ -106,6 +121,7 @@ export interface ElectronAPI {
   onLoginComplete: (callback: (account: Account) => void) => void;
   onLoginError: (callback: (message: string) => void) => void;
   onClipboardToken: (callback: (token: string) => void) => void;
+  onUpdateState: (callback: (state: UpdateState) => void) => void;
 }
 
 declare global {

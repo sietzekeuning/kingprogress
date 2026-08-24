@@ -26,6 +26,7 @@ they never get in the way of the window underneath — until you move your curso
 | **Click to open** | Clicking a card opens that run on GitHub in your browser. |
 | **Dismissable** | The `×` gets rid of a card immediately, and `Clear all` clears the stack. A dismissed run stays gone; the next run shows up as normal. |
 | **Yours only, if you like** | Filter runs by who triggered them, and pick exactly which repositories to watch. |
+| **Updates itself** | Progressy checks GitHub for a new version every few hours, downloads it in the background and swaps it in the next time it restarts. No downloading a DMG again. |
 
 ## Install
 
@@ -36,6 +37,8 @@ they never get in the way of the window underneath — until you move your curso
    notarised by Apple, so it opens with a plain double-click — no right-click trick, no
    `xattr` incantation.
 3. Progressy has no dock icon — look for the menu bar icon at the top of the screen.
+
+That is the last time you have to do this by hand — from here on Progressy keeps itself up to date.
 
 ### Windows
 
@@ -75,6 +78,18 @@ secret (this repository is public, so a secret could never ship in it).
 
 The **Sign in with GitHub** button then replaces the token flow.
 </details>
+
+## Staying up to date
+
+Progressy asks GitHub whether there is a newer release a few times a day, downloads it quietly in the
+background, and installs it the next time it starts — so most of the time a new version just arrives.
+
+Nothing is swapped out from under you mid-session. When a download is ready, the menu bar menu gets a
+**Restart to update to …** item; take it, or ignore it and quit as normal, and the new version is
+there next time. Settings shows the same thing, along with a **Check now** button.
+
+The `.deb` and the Windows portable `.exe` are the exceptions: those belong to your package manager
+and to wherever you put the file, so Progressy leaves them alone and says so in Settings.
 
 ## Settings
 
@@ -125,6 +140,7 @@ PROGRESSY_VERBOSE=1 npm start   # log every poll
 ```
 
 - Main process: `src/main/main.ts` — polling, run state, the popup window
+- Updates: `src/main/updater.ts` — checking GitHub releases, downloading, staging the install
 - Authentication: `src/main/auth.ts` — device flow and token validation
 - Renderer: `src/renderer/` — `views/PopupView.vue` (the stack), `components/ActionCard.vue` (a card)
 - Preload bridge: `src/main/preload.ts`

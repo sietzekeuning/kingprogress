@@ -21,6 +21,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dismissAction: (key: string) => ipcRenderer.invoke('dismiss-action', key),
   dismissAll: () => ipcRenderer.invoke('dismiss-all'),
 
+  // Updates
+  getUpdateState: () => ipcRenderer.invoke('get-update-state'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+
   // Windows
   popupEmpty: () => ipcRenderer.invoke('popup-empty'),
   setPointerInteractive: (interactive: boolean) => ipcRenderer.invoke('set-pointer-interactive', interactive),
@@ -38,5 +43,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onClipboardToken: (callback: (token: string) => void) => {
     ipcRenderer.on('clipboard-token', (_event, token) => callback(token));
+  },
+  // The settings view is mounted and unmounted every time the gear is toggled,
+  // so replace the listener instead of stacking a new one on each visit.
+  onUpdateState: (callback: (state: any) => void) => {
+    ipcRenderer.removeAllListeners('update-state');
+    ipcRenderer.on('update-state', (_event, state) => callback(state));
   },
 });

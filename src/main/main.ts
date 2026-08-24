@@ -14,6 +14,7 @@ import {
     tokenCreationUrl,
     validateToken,
 } from './auth'
+import { checkForUpdates, getUpdateState, initAutoUpdate, installUpdate, stopAutoUpdate } from './updater'
 
 const store = new Store()
 
@@ -131,6 +132,21 @@ function updateTrayMenu() {
             },
         },
     ]
+
+    // An update that is on its way, or waiting for a restart, is worth a line
+    // here - this menu is the only part of Progressy that is always reachable.
+    const update = getUpdateState()
+    if (update.status === 'ready') {
+        menuItems.push({
+            label: `Restart to update to ${update.newVersion}`,
+            click: () => installUpdate(),
+        })
+    } else if (update.status === 'downloading') {
+        menuItems.push({
+            label: `Downloading ${update.newVersion}… ${update.percent}%`,
+            enabled: false,
+        })
+    }
 
     if (token) {
         menuItems.push({
@@ -1481,6 +1497,11 @@ app.whenReady().then(() => {
 
     createTray()
 
+    initAutoUpdate((state) => {
+        updateTrayMenu()
+        sendToMainWindow('update-state', state)
+    })
+
     if (process.env.PROGRESSY_DEMO === '1') {
         console.log('[progressy] demo mode')
         startDemoMode()
@@ -1521,6 +1542,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
     stopActionMonitoring()
+    stopAutoUpdate()
     stopPointerWatchdog()
     stopClipboardWatch()
     cancelDeviceLogin()
@@ -1641,3 +1663,12 @@ ipcMain.handle('resize-window', (_event, width: number, height: number) => {
     mainWindow.setContentSize(Math.round(width), Math.round(height))
     return true
 })
+
+ipcMain.handle('get-update-state', () => getUpdateState())
+
+ipcMain.handle('check-for-updates', () => {
+    checkForUpdates()
+    return getUpdateState()
+})
+
+ipcMain.handle('install-update', () => installUpdate())

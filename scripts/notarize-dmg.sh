@@ -56,4 +56,37 @@ xcrun stapler staple "$DMG"
 
 echo "==> Verifying the way Gatekeeper will"
 spctl -a -vvv -t open --context context:primary-signature "$DMG"
+
+# Signing and stapling rewrote the disk image, so the checksum electron-builder
+# recorded for it in latest-mac.yml is now for a file that no longer exists.
+# The updater downloads the .zip, not the .dmg, so this is not what makes an
+# update work - but shipping a manifest with a wrong hash in it is asking for a
+# confusing bug report later.
+YML=release/latest-mac.yml
+if [ -f "$YML" ]; then
+    echo "==> Refreshing $(basename "$DMG") in $YML"
+    DMG="$DMG" YML="$YML" python3 - <<'REFRESH'
+import base64, hashlib, os, re
+
+dmg, yml = os.environ["DMG"], os.environ["YML"]
+name = os.path.basename(dmg)
+
+digest = hashlib.sha512()
+with open(dmg, "rb") as handle:
+    for chunk in iter(lambda: handle.read(1 << 20), b""):
+        digest.update(chunk)
+sha512 = base64.b64encode(digest.digest()).decode()
+size = os.path.getsize(dmg)
+
+text = open(yml).read()
+entry = re.compile(
+    r"(  - url: " + re.escape(name) + r"\n    sha512: )[^\n]*(\n    size: )\d+",
+)
+text, count = entry.subn(lambda m: m.group(1) + sha512 + m.group(2) + str(size), text)
+if count == 0:
+    raise SystemExit(f"{name} is not listed in {yml} - was it built from this version?")
+open(yml, "w").write(text)
+REFRESH
+fi
+
 echo "OK: $DMG"

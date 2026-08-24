@@ -72,6 +72,33 @@
                 <p v-else-if="filteredRepos.length === 0" class="note">Nothing matches “{{ query }}”.</p>
             </div>
         </section>
+
+        <!-- Version -->
+        <section v-if="update">
+            <h2>
+                Version
+                <span class="count">{{ update.currentVersion }}</span>
+            </h2>
+
+            <div class="update">
+                <p class="update-line">{{ updateLine }}</p>
+                <button v-if="update.status === 'ready'" class="ghost small" @click="installUpdate">Restart now</button>
+                <button
+                    v-else-if="canCheck"
+                    class="ghost small"
+                    :disabled="update.status === 'checking'"
+                    @click="checkNow"
+                >
+                    Check now
+                </button>
+            </div>
+
+            <div v-if="update.status === 'downloading'" class="progress">
+                <span :style="{ width: update.percent + '%' }"></span>
+            </div>
+
+            <p class="note">{{ updateNote }}</p>
+        </section>
     </div>
 </template>
 
@@ -86,6 +113,7 @@ const actorLogins = ref<string[]>([])
 const loginDraft = ref('')
 const query = ref('')
 const loading = ref(true)
+const update = ref<any>(null)
 
 const actorModes = [
     { value: 'all' as const, label: 'Anyone' },
@@ -111,6 +139,45 @@ const actorNote = computed(() => {
     }
     return 'Only runs triggered by the people listed above.'
 })
+
+const updateLine = computed(() => {
+    const state = update.value
+    if (!state) return ''
+    switch (state.status) {
+        case 'checking':
+            return 'Checking for a newer version…'
+        case 'downloading':
+            return `Downloading ${state.newVersion}…`
+        case 'ready':
+            return `Progressy ${state.newVersion} is ready to install.`
+        case 'error':
+            return 'Could not check for updates.'
+        case 'unsupported':
+            return state.message || 'This build does not update itself.'
+        default:
+            return 'Progressy is up to date.'
+    }
+})
+
+const updateNote = computed(() => {
+    const state = update.value
+    if (!state) return ''
+    if (state.status === 'unsupported') {
+        return 'Progressy still tells you when there is something newer — it just cannot install it here.'
+    }
+    if (state.status === 'ready') {
+        return 'It installs on the next restart, whether you do it now or quit later.'
+    }
+    if (state.status === 'error') {
+        return `${state.message || 'Progressy could not reach GitHub.'} It tries again in a few hours.`
+    }
+    if (state.status === 'idle' && state.checkedAt) {
+        return `Checked at ${new Date(state.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Progressy checks a few times a day and installs new versions on restart.`
+    }
+    return 'Progressy checks GitHub a few times a day and installs new versions on restart.'
+})
+
+const canCheck = computed(() => update.value && update.value.status !== 'unsupported')
 
 const filteredRepos = computed(() => {
     const needle = query.value.trim().toLowerCase()
@@ -186,7 +253,20 @@ function signOut() {
     window.electronAPI.signOut().then(() => window.location.reload())
 }
 
+async function checkNow() {
+    update.value = await window.electronAPI.checkForUpdates()
+}
+
+function installUpdate() {
+    window.electronAPI.installUpdate()
+}
+
 onMounted(async () => {
+    update.value = await window.electronAPI.getUpdateState()
+    window.electronAPI.onUpdateState((state) => {
+        update.value = state
+    })
+
     applySettings(await window.electronAPI.getSettings())
     repos.value = await window.electronAPI.listRepos()
     loading.value = false
@@ -408,6 +488,40 @@ input[type='text'],
     background: #21262d;
     color: #7d8590;
     font-size: 9.5px;
+}
+
+.update {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.update-line {
+    flex: 1;
+    min-width: 0;
+    font-size: 11.5px;
+    color: #c9d1d9;
+}
+
+.ghost:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.progress {
+    margin-top: 8px;
+    height: 3px;
+    border-radius: 999px;
+    background: #21262d;
+    overflow: hidden;
+}
+
+.progress span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: #2f81f7;
+    transition: width 0.2s ease;
 }
 
 .note {

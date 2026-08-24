@@ -16,6 +16,40 @@ Output lands in `release/`:
 Each platform has to be built on that platform (or in CI); electron-builder cannot cross-compile the
 Windows and Linux targets from macOS.
 
+## Releasing
+
+Progressy updates itself from GitHub releases, so publishing is not just "attach the installers".
+Every release also has to carry the `latest*.yml` manifest electron-builder generates next to them —
+that file is the only thing an installed copy ever looks at. Forget it and nothing breaks loudly:
+every install out there simply stays on its old version, silently, forever.
+
+```bash
+npm version minor          # or patch/major - the updater compares this to the release
+npm run package:mac
+npm run notarize:dmg       # macOS only, see below
+npm run release            # uploads the installers *and* the manifest
+```
+
+`npm run release` creates the GitHub release as a **draft**, because a draft is invisible to the
+updater — that is the last chance to check the artifacts before every install in the wild starts
+downloading them. Publish it on GitHub when you are happy, or pass `--live` to skip the draft:
+
+```bash
+npm run release -- --live
+```
+
+Building for more than one platform? Run `npm run release` once, after all the `package:*` builds,
+so a single release ends up with `latest-mac.yml`, `latest.yml` and `latest-linux.yml` side by side.
+Running it again just uploads what is new.
+
+Two things it deliberately refuses to do: upload a manifest whose version does not match
+`package.json` (that is a leftover from an older build, and it would point installs at files that are
+not there), and upload artifacts for a version it cannot find in `release/`.
+
+Not every format can update itself. The macOS app, the Windows NSIS install and the Linux AppImage
+can; the `.deb` belongs to the package manager and the Windows portable `.exe` is a loose file, so
+those two say so in Settings instead and are left alone.
+
 ## Signing and notarising the macOS build
 
 Without this, anyone who downloads the DMG gets *"Progressy cannot be opened because the developer
@@ -113,6 +147,14 @@ xcrun stapler validate release/Progressy-1.1.0-arm64.dmg
 ```
 
 If `spctl` says `source=Notarized Developer ID`, a downloaded copy opens with a plain double-click.
+
+Signing matters twice over on macOS: an unsigned app can download an update but not install it, so a
+build that skipped notarisation leaves everyone stuck on it.
+
+Stapling rewrites the disk image after electron-builder has already hashed it, so `notarize:dmg`
+refreshes the DMG's entry in `latest-mac.yml` on its way out. The updater downloads the `.zip`, not
+the `.dmg`, so this is housekeeping rather than the thing that makes an update work — but a manifest
+with a wrong checksum in it is a confusing bug report waiting to happen.
 
 ## Windows signing (optional)
 
