@@ -9,9 +9,9 @@ Output lands in `release/`:
 
 | Platform | Files |
 | --- | --- |
-| macOS | `Progressy-1.1.0-arm64.dmg`, `Progressy-1.1.0-arm64-mac.zip` |
-| Windows | `Progressy Setup 1.1.0.exe`, `Progressy-1.1.0-win-portable.exe` |
-| Linux | `Progressy-1.1.0.AppImage`, `progressy_1.1.0_amd64.deb` |
+| macOS | `Progressy-1.2.0-arm64.dmg`, `Progressy-1.2.0-arm64-mac.zip` |
+| Windows | `Progressy Setup 1.2.0.exe`, `Progressy-1.2.0-win-portable.exe` |
+| Linux | `Progressy-1.2.0.AppImage`, `progressy_1.2.0_amd64.deb` |
 
 Each platform has to be built on that platform (or in CI); electron-builder cannot cross-compile the
 Windows and Linux targets from macOS.
@@ -143,7 +143,7 @@ that is the tell-tale that you would be shipping a build with the Gatekeeper pro
 
 ```bash
 spctl -a -vvv -t install /Applications/Progressy.app   # expect: accepted, source=Notarized Developer ID
-xcrun stapler validate release/Progressy-1.1.0-arm64.dmg
+xcrun stapler validate release/Progressy-1.2.0-arm64.dmg
 ```
 
 If `spctl` says `source=Notarized Developer ID`, a downloaded copy opens with a plain double-click.
