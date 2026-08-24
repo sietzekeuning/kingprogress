@@ -367,7 +367,16 @@ function createMainWindow() {
             app.dock.hide()
         }
         mainWindow = null
+        syncPopupVisibility()
     })
+
+    // Hand the screen back and forth as the window comes and goes. Without
+    // these the stack would only reappear whenever the next poll happens to
+    // land, which is up to fifteen seconds of nothing.
+    mainWindow.on('show', syncPopupVisibility)
+    mainWindow.on('hide', syncPopupVisibility)
+    mainWindow.on('minimize', syncPopupVisibility)
+    mainWindow.on('restore', syncPopupVisibility)
 
     mainWindow.once('ready-to-show', () => {
         mainWindow?.show()
@@ -512,7 +521,35 @@ function ensurePopupWindow(): BrowserWindow {
     return popupWindow
 }
 
+/**
+ * Is the user looking at the window right now?
+ *
+ * A minimised window is still "visible" as far as Electron is concerned, but
+ * there is nothing on screen to look at.
+ */
+function mainWindowIsShowing(): boolean {
+    return !!mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()
+}
+
+/**
+ * The window and the cards show the same runs, so having both on screen is
+ * just the same information twice. The window wins while it is open.
+ */
+function syncPopupVisibility() {
+    if (mainWindowIsShowing()) {
+        hidePopupWindow()
+    } else if (visibleActions().length > 0) {
+        showPopupWindow()
+    }
+}
+
 function showPopupWindow() {
+    // Every path that puts a card on screen comes through here, so this one
+    // check keeps the stack away for as long as the window is up.
+    if (mainWindowIsShowing()) {
+        return
+    }
+
     const win = ensurePopupWindow()
 
     if (popupVisible && win.isVisible()) {

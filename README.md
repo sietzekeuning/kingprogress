@@ -110,7 +110,8 @@ far inside GitHub's 5,000 requests per hour.
 ## Using it
 
 - **Menu bar icon** — click it to open the window with everything that is currently running, plus the
-  gear for settings.
+  gear for settings. While that window is open the cards stay away: the window already lists the same
+  runs, and the same thing twice on screen is just noise. Close it and they come straight back.
 
   <img src="docs/window.png" alt="The Progressy window listing running workflows" width="440">
 
