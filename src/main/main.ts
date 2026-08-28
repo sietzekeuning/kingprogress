@@ -1400,6 +1400,9 @@ async function applyToken(token: string): Promise<Account> {
 }
 
 function signOut() {
+    // A device-login poll still in flight would sign us back in the moment it
+    // resolves.
+    cancelDeviceLogin()
     setStoredToken(null)
     store.delete('account')
     octokit = null
@@ -1461,19 +1464,27 @@ async function startDeviceLogin(): Promise<DeviceCode> {
 let clipboardTimer: NodeJS.Timeout | null = null
 let lastClipboardText = ''
 
+/** The clipboard text, or null when it could not be read. */
+function readClipboardText(): string | null {
+    try {
+        return clipboard.readText()
+    } catch {
+        return null
+    }
+}
+
 function startClipboardWatch() {
     stopClipboardWatch()
-    lastClipboardText = ''
+
+    // Start from whatever is on the clipboard right now, so only a token copied
+    // *after* this screen opened counts. Otherwise signing out would sign you
+    // straight back in with the token still sitting there from signing in.
+    lastClipboardText = readClipboardText() ?? ''
 
     clipboardTimer = setInterval(() => {
-        let text = ''
-        try {
-            text = clipboard.readText()
-        } catch {
-            return
-        }
+        const text = readClipboardText()
 
-        if (text === lastClipboardText) {
+        if (text === null || text === lastClipboardText) {
             return
         }
 
