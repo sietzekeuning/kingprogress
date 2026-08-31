@@ -517,6 +517,17 @@ function stopPointerWatchdog() {
     }
 }
 
+/**
+ * The cards float above ordinary windows, but no higher than that.
+ *
+ * The obvious level for an overlay is 'screen-saver', and that is exactly the
+ * problem: it also sits above the system's own notification banners, which land
+ * in the same top-right corner. A WhatsApp message would arrive behind our
+ * cards and go unread. 'floating' keeps the cards over whatever the user is
+ * working in while letting the system speak over us.
+ */
+const POPUP_WINDOW_LEVEL = 'floating' as const
+
 function ensurePopupWindow(): BrowserWindow {
     if (popupWindow && !popupWindow.isDestroyed()) {
         return popupWindow
@@ -545,7 +556,7 @@ function ensurePopupWindow(): BrowserWindow {
         },
     })
 
-    popupWindow.setAlwaysOnTop(true, 'screen-saver')
+    popupWindow.setAlwaysOnTop(true, POPUP_WINDOW_LEVEL)
     popupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     popupInteractive = true // force the next call through
     setPopupInteractive(false)
@@ -604,7 +615,7 @@ function showPopupWindow() {
 
     win.setBounds(getPopupBounds())
     win.showInactive() // never steal focus from whatever the user is doing
-    win.setAlwaysOnTop(true, 'screen-saver')
+    win.setAlwaysOnTop(true, POPUP_WINDOW_LEVEL)
     popupVisible = true
 }
 
