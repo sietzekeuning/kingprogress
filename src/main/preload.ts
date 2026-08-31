@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listRepos: (force = false) => ipcRenderer.invoke('list-repos', force),
   setWatchedRepos: (repos: string[]) => ipcRenderer.invoke('set-watched-repos', repos),
   setActorFilter: (filter: unknown) => ipcRenderer.invoke('set-actor-filter', filter),
+  setOpenAtLogin: (enabled: boolean) => ipcRenderer.invoke('set-open-at-login', enabled),
 
   // Runs
   getRunningActions: () => ipcRenderer.invoke('get-running-actions'),

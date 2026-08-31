@@ -69,6 +69,7 @@ export interface Settings {
   account: Account | null;
   hasClientId: boolean;
   autoRepoCount: number;
+  openAtLogin: boolean;
 }
 
 export interface RepoSummary {
@@ -104,6 +105,7 @@ export interface ElectronAPI {
   listRepos: (force?: boolean) => Promise<RepoSummary[]>;
   setWatchedRepos: (repos: string[]) => Promise<Settings>;
   setActorFilter: (filter: ActorFilter) => Promise<Settings>;
+  setOpenAtLogin: (enabled: boolean) => Promise<Settings>;
 
   getRunningActions: () => Promise<RunningAction[]>;
   dismissAction: (key: string) => Promise<boolean>;

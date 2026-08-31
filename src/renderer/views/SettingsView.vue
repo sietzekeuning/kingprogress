@@ -73,6 +73,19 @@
             </div>
         </section>
 
+        <!-- Startup -->
+        <section>
+            <h2>Startup</h2>
+
+            <label class="toggle">
+                <span class="toggle-label">Open Progressy when I log in</span>
+                <input type="checkbox" :checked="openAtLogin" @change="setOpenAtLogin(!openAtLogin)" />
+                <span class="switch" :class="{ on: openAtLogin }"></span>
+            </label>
+
+            <p class="note">{{ startupNote }}</p>
+        </section>
+
         <!-- Version -->
         <section v-if="update">
             <h2>
@@ -110,6 +123,7 @@ const repos = ref<any[]>([])
 const watched = ref<Set<string>>(new Set())
 const actorMode = ref<'all' | 'me' | 'only'>('all')
 const actorLogins = ref<string[]>([])
+const openAtLogin = ref(true)
 const loginDraft = ref('')
 const query = ref('')
 const loading = ref(true)
@@ -139,6 +153,12 @@ const actorNote = computed(() => {
     }
     return 'Only runs triggered by the people listed above.'
 })
+
+const startupNote = computed(() =>
+    openAtLogin.value
+        ? 'Progressy comes back in the menu bar after a restart, without a window in the way.'
+        : 'You start Progressy yourself. Runs you miss while it is closed stay missed.'
+)
 
 const updateLine = computed(() => {
     const state = update.value
@@ -196,6 +216,20 @@ function applySettings(next: any) {
     watched.value = new Set(next.watchedRepos)
     actorMode.value = next.actorFilter.mode
     actorLogins.value = [...next.actorFilter.logins]
+    openAtLogin.value = next.openAtLogin
+}
+
+async function setOpenAtLogin(enabled: boolean) {
+    // Optimistic, so the switch moves under the finger; applySettings puts it
+    // back if the OS refused the change.
+    openAtLogin.value = enabled
+
+    try {
+        applySettings(await window.electronAPI.setOpenAtLogin(enabled))
+    } catch (error) {
+        console.error('Could not change the start-at-login setting:', error)
+        openAtLogin.value = !enabled
+    }
 }
 
 async function saveRepos() {
@@ -488,6 +522,71 @@ input[type='text'],
     background: #21262d;
     color: #7d8590;
     font-size: 9.5px;
+}
+
+.toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.toggle-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 11.5px;
+    color: #c9d1d9;
+}
+
+.toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.switch {
+    flex: none;
+    position: relative;
+    width: 30px;
+    height: 17px;
+    border-radius: 999px;
+    background: #21262d;
+    border: 1px solid #30363d;
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #8b949e;
+    transition:
+        transform 0.15s ease,
+        background 0.15s ease;
+}
+
+/* Driven by the bound class, not the input's own :checked state: a failed save
+   puts the value back to what it already was, which Vue sees as no change and
+   would leave the native checkbox flipped the wrong way. */
+.switch.on {
+    background: #2f81f7;
+    border-color: #2f81f7;
+}
+
+.switch.on::after {
+    transform: translateX(13px);
+    background: #ffffff;
+}
+
+.toggle input:focus-visible + .switch {
+    outline: 1px solid #58a6ff;
+    outline-offset: 1px;
 }
 
 .update {

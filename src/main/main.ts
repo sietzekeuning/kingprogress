@@ -178,16 +178,62 @@ function updateTrayMenu() {
     tray.setContextMenu(contextMenu)
 }
 
-// Configure auto-launch (Windows only for now)
-let autoLauncher: AutoLaunch | null = null
-if (process.platform === 'win32') {
-    autoLauncher = new AutoLaunch({
-        name: 'Progressy',
-        path: app.getPath('exe'),
-    })
+// ---------------------------------------------------------------------------
+// Start at login
+// ---------------------------------------------------------------------------
 
-    // Enable auto-launch
-    autoLauncher.enable().catch(console.error)
+/**
+ * On by default. Progressy is only useful while it is running, and it lives in
+ * the menu bar where a forgotten copy costs nothing - so the honest default is
+ * the one where it is simply there after a restart. The setting turns it off.
+ */
+function getOpenAtLogin(): boolean {
+    const stored = store.get('openAtLogin') as boolean | undefined
+    return typeof stored === 'boolean' ? stored : true
+}
+
+let autoLauncher: AutoLaunch | null = null
+
+/**
+ * Linux has no Electron API for this, so it gets auto-launch writing a .desktop
+ * entry. macOS and Windows use the built-in one on purpose: on macOS
+ * auto-launch drives System Events over AppleScript, which asks the user for
+ * automation permission and quietly does nothing if they say no.
+ */
+function linuxLauncher(): AutoLaunch {
+    if (!autoLauncher) {
+        autoLauncher = new AutoLaunch({
+            name: 'Progressy',
+            // An AppImage runs from a temporary mount point; only APPIMAGE
+            // points at something that still exists on the next login.
+            path: process.env.APPIMAGE || app.getPath('exe'),
+        })
+    }
+
+    return autoLauncher
+}
+
+/** Tell the OS what the stored preference says. */
+async function applyOpenAtLogin(enabled: boolean): Promise<void> {
+    // `npm run dev` would otherwise register the bare Electron binary as a
+    // login item, and leave it there long after the dev session is over.
+    if (!app.isPackaged) {
+        return
+    }
+
+    try {
+        if (process.platform === 'linux') {
+            const launcher = linuxLauncher()
+            await (enabled ? launcher.enable() : launcher.disable())
+        } else {
+            app.setLoginItemSettings({
+                openAtLogin: enabled,
+                openAsHidden: true, // no window on login, just the menu bar icon
+            })
+        }
+    } catch (error) {
+        console.error('[progressy] could not change the start-at-login setting:', error)
+    }
 }
 
 function createTray() {
@@ -801,6 +847,7 @@ function getSettings() {
         account: getAccount(),
         hasClientId: !!getClientId(),
         autoRepoCount: REPOS_TO_SCAN,
+        openAtLogin: getOpenAtLogin(),
     }
 }
 
@@ -1545,6 +1592,11 @@ app.whenReady().then(() => {
 
     createTray()
 
+    // Re-apply every launch, not just the first: an update, a move to a
+    // different folder or a login item the user removed by hand all leave the
+    // OS out of step with what the setting says.
+    applyOpenAtLogin(getOpenAtLogin())
+
     initAutoUpdate((state) => {
         updateTrayMenu()
         sendToMainWindow('update-state', state)
@@ -1657,6 +1709,13 @@ ipcMain.handle('set-watched-repos', (_event, repos: string[]) => {
     store.set('watchedRepos', cleaned)
     runsCache.clear() // different repo set, different conditional requests
     checkGitHubActions()
+    return getSettings()
+})
+
+ipcMain.handle('set-open-at-login', async (_event, enabled: boolean) => {
+    const on = !!enabled
+    store.set('openAtLogin', on)
+    await applyOpenAtLogin(on)
     return getSettings()
 })
 
