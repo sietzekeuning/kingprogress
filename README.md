@@ -32,7 +32,7 @@ they never get in the way of the window underneath — until you move your curso
 
 ### macOS
 
-1. Download `KingProgress-1.2.0-arm64.dmg` from the [releases](../../releases) (or build it yourself, see below).
+1. Download `KingProgress-1.4.0-arm64.dmg` from the [releases](../../releases) (or build it yourself, see below).
 2. Open the DMG and drag **KingProgress** into **Applications**. It is signed with a Developer ID and
    notarised by Apple, so it opens with a plain double-click — no right-click trick, no
    `xattr` incantation.
@@ -42,16 +42,16 @@ That is the last time you have to do this by hand — from here on KingProgress 
 
 ### Windows
 
-1. Download and run `KingProgress Setup 1.2.0.exe`, or use the portable `.exe` if you would rather not
+1. Download and run `KingProgress Setup 1.4.0.exe`, or use the portable `.exe` if you would rather not
    install anything.
 2. KingProgress adds itself to the startup items and lives in the system tray.
 
 ### Linux
 
 ```bash
-chmod +x KingProgress-1.2.0.AppImage && ./KingProgress-1.2.0.AppImage
+chmod +x KingProgress-1.4.0.AppImage && ./KingProgress-1.4.0.AppImage
 # or, on Debian/Ubuntu:
-sudo dpkg -i kingprogress_1.2.0_amd64.deb
+sudo dpkg -i kingprogress_1.4.0_amd64.deb
 ```
 
 ## Connecting to GitHub

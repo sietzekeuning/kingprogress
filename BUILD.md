@@ -9,9 +9,9 @@ Output lands in `release/`:
 
 | Platform | Files |
 | --- | --- |
-| macOS | `KingProgress-1.2.0-arm64.dmg`, `KingProgress-1.2.0-arm64-mac.zip` |
-| Windows | `KingProgress Setup 1.2.0.exe`, `KingProgress-1.2.0-win-portable.exe` |
-| Linux | `KingProgress-1.2.0.AppImage`, `kingprogress_1.2.0_amd64.deb` |
+| macOS | `KingProgress-1.4.0-arm64.dmg`, `KingProgress-1.4.0-arm64-mac.zip` |
+| Windows | `KingProgress Setup 1.4.0.exe`, `KingProgress-1.4.0-win-portable.exe` |
+| Linux | `KingProgress-1.4.0.AppImage`, `kingprogress_1.4.0_amd64.deb` |
 
 Each platform has to be built on that platform (or in CI); electron-builder cannot cross-compile the
 Windows and Linux targets from macOS.
@@ -143,7 +143,7 @@ that is the tell-tale that you would be shipping a build with the Gatekeeper pro
 
 ```bash
 spctl -a -vvv -t install /Applications/KingProgress.app   # expect: accepted, source=Notarized Developer ID
-xcrun stapler validate release/KingProgress-1.2.0-arm64.dmg
+xcrun stapler validate release/KingProgress-1.4.0-arm64.dmg
 ```
 
 If `spctl` says `source=Notarized Developer ID`, a downloaded copy opens with a plain double-click.
