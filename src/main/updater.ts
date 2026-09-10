@@ -6,7 +6,7 @@ import { autoUpdater, type UpdateInfo, type ProgressInfo } from 'electron-update
 const FIRST_CHECK_DELAY_MS = 10000
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 
-const VERBOSE = process.env.PROGRESSY_VERBOSE === '1'
+const VERBOSE = process.env.KINGPROGRESS_VERBOSE === '1'
 
 export type UpdateStatus =
     | 'idle' // nothing to do; the last check found no newer version
@@ -78,7 +78,7 @@ function updateBlocker(): string | null {
  * stage it for the next restart.
  *
  * Nothing is installed behind the user's back mid-session: the swap happens when
- * Progressy quits, or immediately if they pick "Restart to update".
+ * KingProgress quits, or immediately if they pick "Restart to update".
  */
 export function initAutoUpdate(listener: (state: UpdateState) => void) {
     onChange = listener
@@ -86,7 +86,7 @@ export function initAutoUpdate(listener: (state: UpdateState) => void) {
     const blocker = updateBlocker()
     if (blocker) {
         if (VERBOSE) {
-            console.log('[progressy] auto-update off:', blocker)
+            console.log('[kingprogress] auto-update off:', blocker)
         }
         setState({ status: 'unsupported', message: blocker })
         return
@@ -105,7 +105,7 @@ export function initAutoUpdate(listener: (state: UpdateState) => void) {
 
     autoUpdater.on('update-not-available', (info: UpdateInfo) => {
         if (VERBOSE) {
-            console.log(`[progressy] no update - ${info.version} is the latest`)
+            console.log(`[kingprogress] no update - ${info.version} is the latest`)
         }
         if (state.status !== 'ready') {
             setState({ status: 'idle', newVersion: null, message: null, checkedAt: Date.now() })
@@ -118,7 +118,7 @@ export function initAutoUpdate(listener: (state: UpdateState) => void) {
         if (state.status === 'ready' && state.newVersion === info.version) {
             return
         }
-        console.log(`[progressy] ${info.version} is available - downloading`)
+        console.log(`[kingprogress] ${info.version} is available - downloading`)
         setState({ status: 'downloading', newVersion: info.version, percent: 0, checkedAt: Date.now() })
     })
 
@@ -127,13 +127,13 @@ export function initAutoUpdate(listener: (state: UpdateState) => void) {
     })
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-        console.log(`[progressy] ${info.version} is ready - it installs on restart`)
+        console.log(`[kingprogress] ${info.version} is ready - it installs on restart`)
         setState({ status: 'ready', newVersion: info.version, percent: 100, checkedAt: Date.now() })
         announce(info.version)
     })
 
     autoUpdater.on('error', (error: Error) => {
-        console.error('[progressy] update failed:', error?.message || error)
+        console.error('[kingprogress] update failed:', error?.message || error)
         // A failed check is not worth nagging about - it retries in a few hours.
         // But do not throw away an update that already downloaded.
         if (state.status !== 'ready') {
@@ -166,8 +166,8 @@ function announce(version: string) {
     notifiedVersion = version
 
     const notification = new Notification({
-        title: `Progressy ${version} is ready`,
-        body: 'It installs the next time Progressy restarts.',
+        title: `KingProgress ${version} is ready`,
+        body: 'It installs the next time KingProgress restarts.',
         silent: true,
     })
     notification.on('click', () => installUpdate())
@@ -184,7 +184,7 @@ export function checkForUpdates() {
         // The error event above already reported it; this only stops the
         // rejection from surfacing as an unhandled promise.
         if (VERBOSE) {
-            console.log('[progressy] check rejected:', error?.message || error)
+            console.log('[kingprogress] check rejected:', error?.message || error)
         }
     })
 }

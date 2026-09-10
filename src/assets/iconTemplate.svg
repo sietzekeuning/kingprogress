@@ -1,13 +1,13 @@
 <!--
-  Progressy mark: a progress ring, the same motif the cards use.
+  KingProgress mark: the King crown above a progress ring.
   Source for the menu bar icons. Black + alpha only: macOS uses the alpha
      channel and tints it, so it works in light and dark mode. Render at 44x44
      for iconTemplate@2x.png and 22x22 for iconTemplate.png.
 -->
-<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
-  <g transform="rotate(-90 22 22)">
-    <circle cx="22" cy="22" r="14" fill="none" stroke="#000" stroke-opacity="0.32" stroke-width="5"/>
-    <circle cx="22" cy="22" r="14" fill="none" stroke="#000" stroke-width="5"
-            stroke-linecap="round" stroke-dasharray="63.3 24.6"/>
+<svg width="44" height="44" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke="#000" stroke-width="2" stroke-linecap="round">
+    <path d="m6 3.25 3.25 2L12 1.75l2.75 3.5 3.25-2-1.25 4.5h-9.5Z" fill="#000" stroke="none"/>
+    <path d="M17.75 9.5a7.5 7.5 0 1 1-11.5 0" stroke-opacity="0.32"/>
+    <path d="M17.75 9.5a7.5 7.5 0 1 1-11.5 0" pathLength="100" stroke-dasharray="72 100"/>
   </g>
 </svg>

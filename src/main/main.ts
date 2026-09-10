@@ -19,7 +19,7 @@ import { checkForUpdates, getUpdateState, initAutoUpdate, installUpdate, stopAut
 const store = new Store()
 
 // Device flow needs a client id but no secret, so it is safe to ship. Leave it
-// empty and Progressy falls back to a pasted personal access token; set it to
+// empty and KingProgress falls back to a pasted personal access token; set it to
 // your own OAuth App (with "Enable Device Flow" ticked) to get the
 // "Sign in with GitHub" button.
 const BUILT_IN_CLIENT_ID = ''
@@ -42,7 +42,7 @@ const REPOS_TO_SCAN = 5 // when the user has not picked repos themselves
 const RUNS_PER_REPO = 5
 const REPO_LIST_CACHE_MS = 10 * 60 * 1000
 
-const VERBOSE = process.env.PROGRESSY_VERBOSE === '1'
+const VERBOSE = process.env.KINGPROGRESS_VERBOSE === '1'
 
 const POPUP_WIDTH = 384
 const POPUP_MARGIN = 16
@@ -134,7 +134,7 @@ function updateTrayMenu() {
     ]
 
     // An update that is on its way, or waiting for a restart, is worth a line
-    // here - this menu is the only part of Progressy that is always reachable.
+    // here - this menu is the only part of KingProgress that is always reachable.
     const update = getUpdateState()
     if (update.status === 'ready') {
         menuItems.push({
@@ -183,7 +183,7 @@ function updateTrayMenu() {
 // ---------------------------------------------------------------------------
 
 /**
- * On by default. Progressy is only useful while it is running, and it lives in
+ * On by default. KingProgress is only useful while it is running, and it lives in
  * the menu bar where a forgotten copy costs nothing - so the honest default is
  * the one where it is simply there after a restart. The setting turns it off.
  */
@@ -203,7 +203,7 @@ let autoLauncher: AutoLaunch | null = null
 function linuxLauncher(): AutoLaunch {
     if (!autoLauncher) {
         autoLauncher = new AutoLaunch({
-            name: 'Progressy',
+            name: 'KingProgress',
             // An AppImage runs from a temporary mount point; only APPIMAGE
             // points at something that still exists on the next login.
             path: process.env.APPIMAGE || app.getPath('exe'),
@@ -232,7 +232,7 @@ async function applyOpenAtLogin(enabled: boolean): Promise<void> {
             })
         }
     } catch (error) {
-        console.error('[progressy] could not change the start-at-login setting:', error)
+        console.error('[kingprogress] could not change the start-at-login setting:', error)
     }
 }
 
@@ -351,7 +351,7 @@ function createTray() {
     }
 
     updateTrayMenu()
-    tray.setToolTip('Progressy - GitHub Actions Monitor')
+    tray.setToolTip('KingProgress - GitHub Actions Monitor')
     tray.on('click', () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show()
@@ -386,6 +386,7 @@ function createMainWindow() {
     }
 
     mainWindow = new BrowserWindow({
+        icon: path.join(app.getAppPath(), 'src/assets/icon.png'),
         width: MAIN_WINDOW_WIDTH,
         height: 420,
         minWidth: MAIN_WINDOW_WIDTH,
@@ -796,7 +797,7 @@ function getStoredToken(): string | undefined {
         try {
             return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
         } catch (error) {
-            console.error('[progressy] could not decrypt the stored token:', error)
+            console.error('[kingprogress] could not decrypt the stored token:', error)
             return undefined
         }
     }
@@ -1053,7 +1054,7 @@ function applyRunState(action: TrackedRun, run: any) {
             action.jobsCompleted = action.jobsTotal
         }
 
-        console.log(`[progressy] ${action.repo} ${action.name} finished: ${action.conclusion}`)
+        console.log(`[kingprogress] ${action.repo} ${action.name} finished: ${action.conclusion}`)
     }
 }
 
@@ -1096,7 +1097,7 @@ async function getExpectedDurationMs(action: TrackedRun): Promise<number | null>
 
         if (value) {
             console.log(
-                `[progressy] expected duration for ${cacheKey}: ${Math.round(value / 1000)}s ` +
+                `[kingprogress] expected duration for ${cacheKey}: ${Math.round(value / 1000)}s ` +
                     `(from ${durations.length} run${durations.length === 1 ? '' : 's'})`,
             )
         }
@@ -1197,7 +1198,7 @@ async function checkGitHubActions() {
 
             const action = createTrackedRun(key, repoFullName, run)
             runningActions.set(key, action)
-            console.log(`[progressy] ${action.repo} ${action.name} started (by ${action.actor || 'unknown'})`)
+            console.log(`[kingprogress] ${action.repo} ${action.name} started (by ${action.actor || 'unknown'})`)
         }
 
         // 2. Refresh everything we are tracking.
@@ -1238,7 +1239,7 @@ async function checkGitHubActions() {
 
         if (VERBOSE) {
             console.log(
-                `[progressy] swept ${repos.length} repo(s) (${conditionalHits} unchanged), ` +
+                `[kingprogress] swept ${repos.length} repo(s) (${conditionalHits} unchanged), ` +
                     `${seenRuns.size} recent run(s), tracking ${runningActions.size}`,
             )
         }
@@ -1285,7 +1286,7 @@ async function runPollCycle() {
 function startActionMonitoring() {
     stopActionMonitoring()
 
-    console.log('[progressy] monitoring started')
+    console.log('[kingprogress] monitoring started')
 
     // Cheap local ticker that retires finished cards once their linger is up.
     lingerInterval = setInterval(() => {
@@ -1309,7 +1310,7 @@ function stopActionMonitoring() {
 }
 
 // ---------------------------------------------------------------------------
-// Demo mode: PROGRESSY_DEMO=1 fakes a couple of runs so the popup can be
+// Demo mode: KINGPROGRESS_DEMO=1 fakes a couple of runs so the popup can be
 // checked without waiting for real CI.
 // ---------------------------------------------------------------------------
 
@@ -1453,7 +1454,7 @@ async function applyToken(token: string): Promise<Account> {
     startActionMonitoring()
     updateTrayMenu()
 
-    console.log(`[progressy] signed in as ${account.login}`)
+    console.log(`[kingprogress] signed in as ${account.login}`)
     return account
 }
 
@@ -1613,8 +1614,8 @@ app.whenReady().then(() => {
         sendToMainWindow('update-state', state)
     })
 
-    if (process.env.PROGRESSY_DEMO === '1') {
-        console.log('[progressy] demo mode')
+    if (process.env.KINGPROGRESS_DEMO === '1') {
+        console.log('[kingprogress] demo mode')
         startDemoMode()
         return
     }
@@ -1634,15 +1635,15 @@ app.whenReady().then(() => {
             })
             .catch((error: AuthError) => {
                 if (error?.code === 'bad_credentials') {
-                    console.log('[progressy] the stored token is no longer valid - signing out')
+                    console.log('[kingprogress] the stored token is no longer valid - signing out')
                     signOut()
                     createMainWindow()
                 } else {
-                    console.error('[progressy] could not verify the stored token:', error?.message || error)
+                    console.error('[kingprogress] could not verify the stored token:', error?.message || error)
                 }
             })
     } else {
-        console.log('[progressy] not signed in yet - opening the window')
+        console.log('[kingprogress] not signed in yet - opening the window')
         createMainWindow()
     }
 })

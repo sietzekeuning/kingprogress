@@ -157,7 +157,7 @@ export async function validateToken(token: string): Promise<Account> {
         headers: {
             Authorization: `Bearer ${token}`,
             Accept: 'application/vnd.github+json',
-            'User-Agent': 'Progressy',
+            'User-Agent': 'KingProgress',
         },
     })
 
@@ -207,7 +207,7 @@ export function looksLikeToken(text: string): boolean {
 export function tokenCreationUrl(hostname: string): string {
     const params = new URLSearchParams({
         scopes: OAUTH_SCOPES.split(' ').join(','),
-        description: `Progressy on ${hostname}`,
+        description: `KingProgress on ${hostname}`,
     })
 
     return `https://github.com/settings/tokens/new?${params.toString()}`

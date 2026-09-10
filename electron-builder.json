@@ -1,6 +1,6 @@
 {
-    "appId": "com.progressy.app",
-    "productName": "Progressy",
+    "appId": "com.kingprogress.app",
+    "productName": "KingProgress",
     "directories": {
         "output": "release"
     },
@@ -8,7 +8,7 @@
         {
             "provider": "github",
             "owner": "sietzekeuning",
-            "repo": "progressy"
+            "repo": "kingprogress"
         }
     ],
     "files": [
@@ -20,6 +20,7 @@
         "node_modules/electron-store/**/*"
     ],
     "win": {
+        "icon": "src/assets/icon.ico",
         "target": [
             "nsis",
             "portable"
@@ -37,6 +38,7 @@
         "notarize": true
     },
     "linux": {
+        "icon": "src/assets/icon.png",
         "target": [
             "AppImage",
             "deb"

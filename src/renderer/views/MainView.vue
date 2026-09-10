@@ -1,7 +1,7 @@
 <template>
     <div class="main">
         <header class="bar">
-            <span class="brand">Progressy</span>
+            <span class="brand"><BrandIcon width="18" height="18" />KingProgress</span>
             <span class="count">{{ countLabel }}</span>
             <button v-if="actions.length && !showSettings" class="icon" title="Clear all" @click="clearAll">
                 <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
@@ -47,6 +47,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import ActionCard from '../components/ActionCard.vue'
+import BrandIcon from '../components/BrandIcon.vue'
 import SettingsView from './SettingsView.vue'
 
 const WINDOW_WIDTH = 440
@@ -157,10 +158,18 @@ onUnmounted(() => {
 }
 
 .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-size: 12px;
     font-weight: 600;
     color: #e6edf3;
     letter-spacing: -0.01em;
+}
+
+.brand svg {
+    flex-shrink: 0;
+    color: #58a6ff;
 }
 
 .count {

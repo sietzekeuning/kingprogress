@@ -4,7 +4,7 @@
 #
 # The installers are the obvious part. The `latest*.yml` manifests are the part
 # that is easy to forget and impossible to notice: they are what an installed
-# copy of Progressy polls to find out a newer version exists. Leave them out and
+# copy of KingProgress polls to find out a newer version exists. Leave them out and
 # every existing install stays on its old version forever, quietly, with no
 # error anywhere.
 #
@@ -28,13 +28,13 @@ TAG="v$VERSION"
 # Only the files that belong to this version - release/ accumulates old builds.
 ASSETS=()
 for pattern in \
-    "release/Progressy-$VERSION-"*.dmg \
-    "release/Progressy-$VERSION-"*.zip \
-    "release/Progressy-$VERSION-"*.blockmap \
-    "release/Progressy Setup $VERSION.exe" \
-    "release/Progressy-$VERSION-win-portable.exe" \
-    "release/Progressy-$VERSION.AppImage" \
-    "release/progressy_${VERSION}_"*.deb \
+    "release/KingProgress-$VERSION-"*.dmg \
+    "release/KingProgress-$VERSION-"*.zip \
+    "release/KingProgress-$VERSION-"*.blockmap \
+    "release/KingProgress Setup $VERSION.exe" \
+    "release/KingProgress-$VERSION-win-portable.exe" \
+    "release/KingProgress-$VERSION.AppImage" \
+    "release/kingprogress_${VERSION}_"*.deb \
     release/latest-mac.yml \
     release/latest.yml \
     release/latest-linux.yml; do
@@ -74,7 +74,7 @@ else
     fi
     echo "==> Creating the release"
     gh release create "$TAG" "${ASSETS[@]}" \
-        --title "Progressy $VERSION" \
+        --title "KingProgress $VERSION" \
         --generate-notes \
         "${DRAFT[@]}"
 fi

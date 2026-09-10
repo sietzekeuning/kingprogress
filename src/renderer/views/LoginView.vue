@@ -3,15 +3,10 @@
         <div class="drag-bar"></div>
 
         <div class="mark" aria-hidden="true">
-            <svg viewBox="0 0 16 16" width="26" height="26">
-                <path
-                    fill="currentColor"
-                    d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
-                />
-            </svg>
+            <BrandIcon width="36" height="36" />
         </div>
 
-        <h1>Connect Progressy</h1>
+        <h1>Connect KingProgress</h1>
         <p class="lead">It watches your workflow runs and shows a card the moment one starts.</p>
 
         <!-- Device flow: only offered when this build has an OAuth App id -->
@@ -40,7 +35,7 @@
             <button class="primary" @click="openTokenPage">Create a token on GitHub</button>
             <p class="hint">
                 Opens GitHub with <code>repo</code> and <code>workflow</code> already ticked. Pick an expiry, click
-                <strong>Generate token</strong>, then copy it — Progressy picks it up from your clipboard by itself.
+                <strong>Generate token</strong>, then copy it — KingProgress picks it up from your clipboard by itself.
             </p>
 
             <div class="paste" :class="{ armed: pasted }">
@@ -64,6 +59,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import BrandIcon from '../components/BrandIcon.vue'
 
 const rootEl = ref<HTMLElement | null>(null)
 const auth = ref<any>(null)
@@ -216,7 +212,7 @@ onUnmounted(() => {
 }
 
 .mark {
-    color: #f0f6fc;
+    color: #58a6ff;
     opacity: 0.9;
     margin-bottom: 14px;
 }

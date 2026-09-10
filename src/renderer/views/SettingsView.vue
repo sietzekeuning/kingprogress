@@ -78,7 +78,7 @@
             <h2>Startup</h2>
 
             <label class="toggle">
-                <span class="toggle-label">Open Progressy when I log in</span>
+                <span class="toggle-label">Open KingProgress when I log in</span>
                 <input type="checkbox" :checked="openAtLogin" @change="setOpenAtLogin(!openAtLogin)" />
                 <span class="switch" :class="{ on: openAtLogin }"></span>
             </label>
@@ -156,8 +156,8 @@ const actorNote = computed(() => {
 
 const startupNote = computed(() =>
     openAtLogin.value
-        ? 'Progressy comes back in the menu bar after a restart, without a window in the way.'
-        : 'You start Progressy yourself. Runs you miss while it is closed stay missed.'
+        ? 'KingProgress comes back in the menu bar after a restart, without a window in the way.'
+        : 'You start KingProgress yourself. Runs you miss while it is closed stay missed.'
 )
 
 const updateLine = computed(() => {
@@ -169,13 +169,13 @@ const updateLine = computed(() => {
         case 'downloading':
             return `Downloading ${state.newVersion}…`
         case 'ready':
-            return `Progressy ${state.newVersion} is ready to install.`
+            return `KingProgress ${state.newVersion} is ready to install.`
         case 'error':
             return 'Could not check for updates.'
         case 'unsupported':
             return state.message || 'This build does not update itself.'
         default:
-            return 'Progressy is up to date.'
+            return 'KingProgress is up to date.'
     }
 })
 
@@ -183,18 +183,18 @@ const updateNote = computed(() => {
     const state = update.value
     if (!state) return ''
     if (state.status === 'unsupported') {
-        return 'Progressy still tells you when there is something newer — it just cannot install it here.'
+        return 'KingProgress still tells you when there is something newer — it just cannot install it here.'
     }
     if (state.status === 'ready') {
         return 'It installs on the next restart, whether you do it now or quit later.'
     }
     if (state.status === 'error') {
-        return `${state.message || 'Progressy could not reach GitHub.'} It tries again in a few hours.`
+        return `${state.message || 'KingProgress could not reach GitHub.'} It tries again in a few hours.`
     }
     if (state.status === 'idle' && state.checkedAt) {
-        return `Checked at ${new Date(state.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Progressy checks a few times a day and installs new versions on restart.`
+        return `Checked at ${new Date(state.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. KingProgress checks a few times a day and installs new versions on restart.`
     }
-    return 'Progressy checks GitHub a few times a day and installs new versions on restart.'
+    return 'KingProgress checks GitHub a few times a day and installs new versions on restart.'
 })
 
 const canCheck = computed(() => update.value && update.value.status !== 'unsupported')
