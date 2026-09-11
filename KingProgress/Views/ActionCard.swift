@@ -86,13 +86,20 @@ struct ActionCard: View {
         .animation(.easeOut(duration: 0.1), value: pressed)
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onHover { hovering = $0 }
-        // The whole card opens the run on GitHub.
-        .simultaneousGesture(
+        // The whole card opens the run on GitHub. One gesture does both the
+        // press effect and the click: a separate tap gesture would lose to
+        // the press gesture underneath it and never fire. Dragging away
+        // before letting go cancels, like a button.
+        .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in pressed = true }
-                .onEnded { _ in pressed = false }
+                .onEnded { value in
+                    pressed = false
+                    if abs(value.translation.width) < 8, abs(value.translation.height) < 8 {
+                        onOpen()
+                    }
+                }
         )
-        .onTapGesture(perform: onOpen)
         .help("Open this run on GitHub")
     }
 
