@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>KingProgress</title>
+        <link>https://github.com/sietzekeuning/kingprogress</link>
+        <description>Updates for the KingProgress menu bar app. Read by installed copies through https://raw.githubusercontent.com/sietzekeuning/kingprogress/master/appcast.xml; newest release first.</description>
+        <language>en</language>
+        <!-- releases -->
+    </channel>
+</rss>

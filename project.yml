@@ -1,0 +1,66 @@
+name: KingProgress
+options:
+  bundleIdPrefix: com.kingprogress
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.9.0
+settings:
+  base:
+    MARKETING_VERSION: "1.5.0"
+    CURRENT_PROJECT_VERSION: 1
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: 7Q6S4366TL
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Developer ID Application"
+    ENABLE_HARDENED_RUNTIME: YES
+    ARCHS: "arm64 x86_64"
+    ONLY_ACTIVE_ARCH: NO
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    SWIFT_STRICT_CONCURRENCY: minimal
+targets:
+  KingProgress:
+    type: application
+    platform: macOS
+    sources:
+      - path: KingProgress
+    dependencies:
+      - package: Sparkle
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kingprogress.app
+        PRODUCT_NAME: KingProgress
+        INFOPLIST_KEY_LSUIElement: YES
+    info:
+      path: KingProgress/Info.plist
+      properties:
+        CFBundleName: KingProgress
+        CFBundleDisplayName: KingProgress
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSHumanReadableCopyright: "© Sietze Keuning. MIT licensed."
+        # Sparkle: the appcast lives at the root of this repository and is
+        # served straight off the master branch, so a release reaches
+        # installed copies once its commit is pushed (scripts/release.sh).
+        SUFeedURL: https://raw.githubusercontent.com/sietzekeuning/kingprogress/master/appcast.xml
+        SUPublicEDKey: 29WtrkToLOrIUqxg+0unVD1o+UWcZBwL87CJaLJJouE=
+        SUEnableAutomaticChecks: true
+        SUAutomaticallyUpdate: true
+        SUScheduledCheckInterval: 21600
+schemes:
+  KingProgress:
+    build:
+      targets:
+        KingProgress: all
+    run:
+      config: Debug
+    archive:
+      config: Release
