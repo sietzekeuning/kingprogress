@@ -56,13 +56,14 @@ final class GitHubClient {
 
     // MARK: - Requests
 
-    private func request(_ path: String, query: [String: String] = [:], etag: String? = nil) async throws -> (Data, HTTPURLResponse) {
+    private func request(_ path: String, query: [String: String] = [:], etag: String? = nil, method: String = "GET") async throws -> (Data, HTTPURLResponse) {
         var components = URLComponents(string: "https://api.github.com\(path)")!
         if !query.isEmpty {
             components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }
         }
 
         var request = URLRequest(url: components.url!)
+        request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
@@ -192,6 +193,20 @@ final class GitHubClient {
     }
 
     /// The jobs of a run, steps included.
+    /// Asks GitHub to cancel a run. 202 means it is winding down; 409 means
+    /// it had already finished, which is as cancelled as it gets.
+    func cancelRun(owner: String, repo: String, runId: Int) async throws {
+        let (_, http) = try await request("/repos/\(owner)/\(repo)/actions/runs/\(runId)/cancel", method: "POST")
+        switch http.statusCode {
+        case 409:
+            return
+        case 403:
+            throw GitHubError(kind: .http(403), message: "This token may not cancel runs. It needs the repo scope, or Actions write access.")
+        default:
+            try check(http)
+        }
+    }
+
     func jobs(owner: String, repo: String, runId: Int) async throws -> [Job] {
         try await get(JobList.self, "/repos/\(owner)/\(repo)/actions/runs/\(runId)/jobs", query: ["per_page": "100"]).jobs
     }

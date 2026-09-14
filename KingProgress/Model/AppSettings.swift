@@ -50,6 +50,8 @@ final class AppSettings {
     private(set) var account: Account?
     private(set) var openAtLogin: Bool
     private(set) var cardTheme: CardTheme
+    /// Show the subject of the commit each run is building on its card.
+    private(set) var showCommitMessage: Bool
 
     init() {
         watchedRepos = defaults.stringArray(forKey: "watchedRepos") ?? []
@@ -61,6 +63,7 @@ final class AppSettings {
         // restart. The setting turns it off.
         openAtLogin = defaults.object(forKey: "openAtLogin") as? Bool ?? true
         cardTheme = defaults.string(forKey: "cardTheme").flatMap(CardTheme.init(rawValue:)) ?? .classic
+        showCommitMessage = defaults.object(forKey: "showCommitMessage") as? Bool ?? true
     }
 
     var token: String? {
@@ -107,5 +110,10 @@ final class AppSettings {
     func setCardTheme(_ theme: CardTheme) {
         cardTheme = theme
         defaults.set(theme.rawValue, forKey: "cardTheme")
+    }
+
+    func setShowCommitMessage(_ enabled: Bool) {
+        showCommitMessage = enabled
+        defaults.set(enabled, forKey: "showCommitMessage")
     }
 }

@@ -59,8 +59,10 @@ struct PopupView: View {
                         now: clock.now,
                         isMine: isMine(action),
                         theme: theme,
+                        showCommit: monitor.settings.showCommitMessage,
                         onDismiss: { monitor.dismiss(action.key) },
-                        onOpen: { onOpen(action.url) }
+                        onOpen: { onOpen(action.url) },
+                        onCancel: { Task { await monitor.cancel(action.key) } }
                     )
                     .hitRegion(action.key)
                     // The padding doubles as the gap between cards and as

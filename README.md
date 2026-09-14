@@ -21,9 +21,11 @@ they never get in the way of the window underneath — until you move your curso
 | --- | --- |
 | **Live status** | The pill in the corner tracks the run: `QUEUED` → `RUNNING` → `PASSED` or `FAILED`, with the accent colour, dot and progress bar following along. |
 | **Time-based progress** | The bar is measured against the median wall-clock time of the last 3 successful runs of that same workflow, so it shows `~2m 1s left` instead of a guess. No history yet? It falls back to completed jobs, or an indeterminate sweep. |
+| **What is deploying** | The subject line of the commit the run is building, right on the card. Can be switched off in the settings. |
 | **Current step** | The job and step that GitHub is running right now, e.g. `deploy → Run php artisan migrate --force`. |
 | **Sticks around** | A finished run stays for 20 seconds — green for passed, red for failed — with a thin bar draining along the bottom edge, then slides away on its own. |
 | **Click to open** | Clicking a card opens that run on GitHub in your browser. |
+| **Cancel from the card** | The stop button on a running card cancels the run on GitHub, after a quick "are you sure?" on the card itself — no dialog stealing focus. |
 | **Dismissable** | The `×` gets rid of a card immediately, and `Clear all` clears the stack. A dismissed run stays gone; the next run shows up as normal. |
 | **Yours only, if you like** | Filter runs by who triggered them, and pick exactly which repositories to watch. |
 | **Two looks** | Classic solid cards, or Liquid Glass like the rest of macOS 26, following the system's light or dark appearance (older versions get a frosted stand-in). Pick one under **Cards** in the settings. |

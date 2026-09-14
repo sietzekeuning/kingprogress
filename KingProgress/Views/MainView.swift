@@ -105,8 +105,10 @@ struct MainView: View {
                         now: clock.now,
                         isMine: isMine(action),
                         theme: monitor.settings.cardTheme,
+                        showCommit: monitor.settings.showCommitMessage,
                         onDismiss: { monitor.dismiss(action.key) },
-                        onOpen: { openURL(action.url) }
+                        onOpen: { openURL(action.url) },
+                        onCancel: { Task { await monitor.cancel(action.key) } }
                     )
                     .padding(EdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12))
                     .transition(.cardSlide(distance: 24, scale: 0.97, blur: 0))

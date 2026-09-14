@@ -7,11 +7,16 @@ struct ActionCard: View {
     let now: Date
     let isMine: Bool
     let theme: CardTheme
+    /// Whether to show the commit subject line under the workflow.
+    let showCommit: Bool
     let onDismiss: () -> Void
     let onOpen: () -> Void
+    let onCancel: () -> Void
 
     @State private var hovering = false
     @State private var pressed = false
+    /// The stop button was clicked; the head row is asking "are you sure?".
+    @State private var confirming = false
     @Environment(\.colorScheme) private var colorScheme
 
     private var state: ActionState { action.state }
@@ -26,6 +31,7 @@ struct ActionCard: View {
     // label colours, so the text follows the Mac's light or dark look and
     // stays readable over whatever the glass is on top of.
     private var brightInk: Color { isGlass ? .primary : Theme.bright }
+    private var textInk: Color { isGlass ? Color.primary.opacity(0.85) : Theme.cardText }
     private var mutedInk: Color { isGlass ? .secondary : Theme.muted }
     private var softInk: Color { isGlass ? .secondary : Theme.muted2 }
     private var dimInk: Color { isGlass ? Color.secondary.opacity(0.75) : Theme.dim }
@@ -41,17 +47,26 @@ struct ActionCard: View {
             .animation(.easeOut(duration: 0.15), value: hovering)
             .animation(.easeOut(duration: 0.1), value: pressed)
             .contentShape(Self.shape)
-            .onHover { hovering = $0 }
+            .onHover { over in
+                hovering = over
+                if !over {
+                    confirming = false
+                }
+            }
             // The whole card opens the run on GitHub. One gesture does both the
             // press effect and the click: a separate tap gesture would lose to
             // the press gesture underneath it and never fire. Dragging away
-            // before letting go cancels, like a button.
+            // before letting go cancels, like a button. While the card is
+            // asking about a cancel, a click just withdraws the question.
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in pressed = true }
                     .onEnded { value in
                         pressed = false
-                        if abs(value.translation.width) < 8, abs(value.translation.height) < 8 {
+                        guard abs(value.translation.width) < 8, abs(value.translation.height) < 8 else { return }
+                        if confirming {
+                            confirming = false
+                        } else {
                             onOpen()
                         }
                     }
@@ -66,10 +81,25 @@ struct ActionCard: View {
             workflowLine
                 .padding(.top, 5)
 
+            if showCommit, let commit = action.commitMessage {
+                HStack(spacing: 5) {
+                    CommitGlyph()
+                        .frame(width: 12, height: 12)
+                        .opacity(0.7)
+                    Text(commit)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .help(commit)
+                }
+                .font(.system(size: 11.5))
+                .foregroundStyle(textInk)
+                .padding(.top, 5)
+            }
+
             if let detailLine {
                 Text(detailLine)
                     .font(.system(size: 11.5))
-                    .foregroundStyle(detailInk)
+                    .foregroundStyle(action.cancelError != nil ? Theme.red : detailInk)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .padding(.top, 6)
@@ -173,7 +203,56 @@ struct ActionCard: View {
 
     // MARK: - Pieces
 
+    // The head row doubles as the confirm strip: a system alert would
+    // activate the app and pull focus from whatever the user is doing,
+    // which is exactly what the floating cards must never do. There is no
+    // "no" button: clicking anywhere else on the card, leaving it, or six
+    // seconds of nothing all put the row back.
     private var head: some View {
+        ZStack {
+            if confirming {
+                confirmStrip.transition(.opacity)
+            } else {
+                headRow.transition(.opacity)
+            }
+        }
+        // Same height either way, so the card does not jiggle on the switch.
+        .frame(height: 20)
+        .animation(.easeOut(duration: 0.15), value: confirming)
+        .task(id: confirming) {
+            // Nobody answered: put the row back rather than leave a question
+            // hanging on a card that may sit there for minutes.
+            guard confirming else { return }
+            try? await Task.sleep(for: .seconds(6))
+            if !Task.isCancelled {
+                confirming = false
+            }
+        }
+    }
+
+    private var confirmStrip: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "stop.fill")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Theme.red)
+                .frame(width: 12, height: 12)
+
+            Text("Cancel this run on GitHub?")
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(brightInk)
+                .lineLimit(1)
+
+            Spacer(minLength: 4)
+
+            Button("Cancel run") {
+                confirming = false
+                onCancel()
+            }
+            .buttonStyle(InlineButtonStyle(tint: Theme.red))
+        }
+    }
+
+    private var headRow: some View {
         HStack(spacing: 7) {
             Group {
                 if isRunning {
@@ -207,6 +286,10 @@ struct ActionCard: View {
 
             pill
 
+            if isRunning, !action.cancelling {
+                CancelButton(glass: isGlass) { confirming = true }
+            }
+
             DismissButton(glass: isGlass, action: onDismiss)
                 .padding(.trailing, -3)
         }
@@ -217,7 +300,7 @@ struct ActionCard: View {
             if isRunning {
                 PulseDot()
             }
-            Text(state.label.uppercased())
+            Text((action.cancelling && isRunning ? "Cancelling" : state.label).uppercased())
                 .font(.system(size: 10, weight: .bold))
                 .tracking(0.4)
         }
@@ -362,6 +445,9 @@ struct ActionCard: View {
         if isDone {
             return nil
         }
+        if let cancelError = action.cancelError {
+            return cancelError
+        }
         guard let job = action.currentJob else {
             return state == .queued ? "Waiting for a runner" : nil
         }
@@ -491,6 +577,70 @@ private struct DismissButton: View {
         .help("Dismiss")
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
+    }
+}
+
+/// The stop square next to the dismiss cross on a running card. Red only
+/// on hover, so a row of running cards does not look like a row of alarms.
+private struct CancelButton: View {
+    let glass: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(hovering ? Theme.red : (glass ? Color.secondary : Theme.muted2))
+                .frame(width: 8, height: 8)
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(Theme.red.opacity(hovering ? 0.18 : 0)))
+                .opacity(hovering ? 1 : 0.55)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Cancel this run")
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovering)
+    }
+}
+
+/// The "Cancel run" pill in the confirm strip.
+private struct InlineButtonStyle: ButtonStyle {
+    let tint: Color
+    @State private var hovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 10.5, weight: .semibold))
+            .padding(.vertical, 2.5)
+            .padding(.horizontal, 9)
+            .foregroundStyle(Color.white)
+            .background(Capsule().fill(tint.opacity(hovering ? 1 : 0.85)))
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .contentShape(Capsule())
+            .onHover { hovering = $0 }
+            .animation(.easeOut(duration: 0.15), value: hovering)
+    }
+}
+
+/// The "git-commit" octicon: a ring on a line.
+private struct CommitGlyph: View {
+    var body: some View {
+        Canvas { context, size in
+            let scale = size.width / 16
+            let stroke = StrokeStyle(lineWidth: 1.5 * scale, lineCap: .round)
+            let mid = 8 * scale
+
+            var line = Path()
+            line.move(to: CGPoint(x: 0.75 * scale, y: mid))
+            line.addLine(to: CGPoint(x: 4.5 * scale, y: mid))
+            line.move(to: CGPoint(x: 11.5 * scale, y: mid))
+            line.addLine(to: CGPoint(x: 15.25 * scale, y: mid))
+            context.stroke(line, with: .style(.foreground), style: stroke)
+
+            let ring = Path(ellipseIn: CGRect(x: 4.75 * scale, y: 4.75 * scale, width: 6.5 * scale, height: 6.5 * scale))
+            context.stroke(ring, with: .style(.foreground), style: stroke)
+        }
     }
 }
 

@@ -46,6 +46,7 @@ final class RunMonitor {
     private var lingerTimer: Timer?
     private var deviceTask: Task<Void, Never>?
     private var conditionalHits = 0
+    private var isDemo = false
 
     init(settings: AppSettings) {
         self.settings = settings
@@ -188,6 +189,65 @@ final class RunMonitor {
             dismissed[key] = Date()
         }
         running.removeAll()
+        publish()
+    }
+
+    /// Asks GitHub to cancel a run. The card says "cancelling" until a poll
+    /// sees GitHub's verdict: GitHub takes a few seconds to wind the jobs
+    /// down, so the next sweep is nudged rather than the answer awaited.
+    func cancel(_ key: String) async {
+        guard var action = running[key], action.state.isActive, !action.cancelling else {
+            return
+        }
+
+        action.cancelling = true
+        action.cancelError = nil
+        running[key] = action
+        publish()
+        log("cancelling \(action.repo) \(action.name) (run \(action.runId))")
+
+        if isDemo {
+            try? await Task.sleep(for: .seconds(1.5))
+            complete(key, conclusion: "cancelled")
+            return
+        }
+
+        guard let client else {
+            return
+        }
+
+        do {
+            try await client.cancelRun(owner: action.owner, repo: action.repoName, runId: action.runId)
+            try? await Task.sleep(for: .seconds(2))
+            await sweep()
+        } catch {
+            log("could not cancel run \(action.runId) for \(action.repo): \(error.localizedDescription)")
+            guard var failed = running[key] else { return }
+            failed.cancelling = false
+            failed.cancelError = error.localizedDescription
+            running[key] = failed
+            publish()
+
+            // The message has done its job after a few seconds.
+            try? await Task.sleep(for: .seconds(8))
+            if var later = running[key], later.cancelError == failed.cancelError {
+                later.cancelError = nil
+                running[key] = later
+                publish()
+            }
+        }
+    }
+
+    private func complete(_ key: String, conclusion: String) {
+        guard var action = running[key] else { return }
+        action.status = .completed
+        action.conclusion = conclusion
+        action.completedAt = Date()
+        action.duration = Date().timeIntervalSince(action.startedAt)
+        action.currentJob = nil
+        action.currentStep = nil
+        action.jobsCompleted = action.jobsTotal
+        running[key] = action
         publish()
     }
 
@@ -393,6 +453,7 @@ final class RunMonitor {
             name: run.name ?? run.displayTitle ?? "Workflow run",
             branch: run.headBranch,
             event: run.event,
+            commitMessage: run.commitSummary,
             status: RunStatus(github: run.status),
             conclusion: run.conclusion,
             actor: run.whoTriggered,
@@ -411,6 +472,7 @@ final class RunMonitor {
     private func apply(_ run: WorkflowRun, to action: inout TrackedRun) {
         action.name = run.name ?? run.displayTitle ?? action.name
         action.branch = run.headBranch ?? action.branch
+        action.commitMessage = run.commitSummary ?? action.commitMessage
         action.actor = run.whoTriggered ?? action.actor
         action.startedAt = run.startedAt
 
@@ -557,8 +619,11 @@ final class RunMonitor {
                 await refreshJobs(&action)
             }
 
-            // The card may have been dismissed while we were waiting on GitHub.
-            if running[key] != nil {
+            // The card may have been dismissed - or a cancel sent - while we
+            // were waiting on GitHub.
+            if let current = running[key] {
+                action.cancelling = current.cancelling
+                action.cancelError = current.cancelError
                 running[key] = action
             }
         }
@@ -578,6 +643,7 @@ final class RunMonitor {
     // without waiting for real CI.
 
     func startDemo(account: Account? = nil) {
+        isDemo = true
         isSignedIn = true
         demoAccount = account
         demoRepos = [
@@ -591,10 +657,10 @@ final class RunMonitor {
         let now = Date()
         let me = myLogin ?? "octocat"
 
-        func demoRun(key: String, repo: String, name: String, branch: String, actor: String = me, status: RunStatus = .inProgress, job: String? = "test-and-deploy", step: String? = "Run actions/checkout@v4", expected: TimeInterval? = 90, jobsTotal: Int = 3, jobsCompleted: Int = 1, startedAgo: TimeInterval = 0) -> TrackedRun {
+        func demoRun(key: String, repo: String, name: String, branch: String, actor: String = me, status: RunStatus = .inProgress, job: String? = "test-and-deploy", step: String? = "Run actions/checkout@v4", expected: TimeInterval? = 90, jobsTotal: Int = 3, jobsCompleted: Int = 1, startedAgo: TimeInterval = 0, commit: String? = nil) -> TrackedRun {
             TrackedRun(
                 key: key, repo: repo, owner: String(repo.split(separator: "/")[0]), repoName: String(repo.split(separator: "/")[1]),
-                runId: 1, workflowId: 1, name: name, branch: branch, event: "push", status: status, conclusion: nil,
+                runId: 1, workflowId: 1, name: name, branch: branch, event: "push", commitMessage: commit, status: status, conclusion: nil,
                 actor: actor, startedAt: now.addingTimeInterval(-startedAgo), completedAt: nil, duration: nil,
                 expectedDuration: expected, currentJob: job, currentStep: step, jobsTotal: jobsTotal, jobsCompleted: jobsCompleted,
                 url: URL(string: "https://github.com/\(repo)/actions/runs/32376222808")!
@@ -602,16 +668,7 @@ final class RunMonitor {
         }
 
         func finish(_ key: String, _ conclusion: String) {
-            guard var action = running[key] else { return }
-            action.status = .completed
-            action.conclusion = conclusion
-            action.completedAt = Date()
-            action.duration = Date().timeIntervalSince(action.startedAt)
-            action.currentJob = nil
-            action.currentStep = nil
-            action.jobsCompleted = action.jobsTotal
-            running[key] = action
-            publish()
+            complete(key, conclusion: conclusion)
         }
 
         func at(_ seconds: Double, _ block: @escaping @MainActor () -> Void) {
@@ -619,7 +676,7 @@ final class RunMonitor {
         }
 
         at(1) { [self] in
-            running["demo-a"] = demoRun(key: "demo-a", repo: "sietzekeuning/vvw-site", name: "CI/CD", branch: "main", status: .queued, job: nil, step: nil)
+            running["demo-a"] = demoRun(key: "demo-a", repo: "sietzekeuning/vvw-site", name: "CI/CD", branch: "main", status: .queued, job: nil, step: nil, commit: "Fix the newsletter form on Safari")
             publish()
         }
         at(3) { [self] in
@@ -627,12 +684,12 @@ final class RunMonitor {
             publish()
         }
         at(6) { [self] in
-            running["demo-b"] = demoRun(key: "demo-b", repo: "sietzekeuning/marmaya", name: "Deploy to production", branch: "release/2026-08", actor: "octocat", job: "build-and-push-image", step: "Build and push Docker image to the registry", expected: nil, jobsTotal: 5, jobsCompleted: 2, startedAgo: 45)
+            running["demo-b"] = demoRun(key: "demo-b", repo: "sietzekeuning/marmaya", name: "Deploy to production", branch: "release/2026-08", actor: "octocat", job: "build-and-push-image", step: "Build and push Docker image to the registry", expected: nil, jobsTotal: 5, jobsCompleted: 2, startedAgo: 45, commit: "Bump image to PHP 8.4 and rotate the registry token")
             publish()
         }
         at(12) { finish("demo-a", "success") }
         at(16) { [self] in
-            running["demo-c"] = demoRun(key: "demo-c", repo: "sietzekeuning/pos", name: "production", branch: "master", job: "deploy", step: "Run php artisan migrate --force", expected: 352, jobsTotal: 4, jobsCompleted: 3, startedAgo: 210)
+            running["demo-c"] = demoRun(key: "demo-c", repo: "sietzekeuning/pos", name: "production", branch: "master", job: "deploy", step: "Run php artisan migrate --force", expected: 352, jobsTotal: 4, jobsCompleted: 3, startedAgo: 210, commit: "Add refunds to the daily sales export")
             publish()
         }
         at(18) { finish("demo-b", "failure") }

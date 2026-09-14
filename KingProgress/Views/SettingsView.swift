@@ -304,6 +304,25 @@ struct SettingsView: View {
             }
 
             note(settings.cardTheme.note)
+
+            HStack(spacing: 10) {
+                Text("Show the latest commit message")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.text)
+                Spacer()
+                SwitchView(on: settings.showCommitMessage)
+            }
+            .padding(.top, 14)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    settings.setShowCommitMessage(!settings.showCommitMessage)
+                }
+            }
+
+            note(settings.showCommitMessage
+                ? "Each card shows the subject line of the commit it is building, so you can see what is deploying."
+                : "Cards show only the workflow and branch.")
         }
     }
 

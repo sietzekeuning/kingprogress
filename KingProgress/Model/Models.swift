@@ -58,6 +58,8 @@ struct TrackedRun: Identifiable, Equatable {
     var name: String
     var branch: String?
     var event: String?
+    /// First line of the commit the run is building - what is deploying.
+    var commitMessage: String?
     var status: RunStatus
     var conclusion: String?
     var actor: String?
@@ -69,6 +71,10 @@ struct TrackedRun: Identifiable, Equatable {
     var currentStep: String?
     var jobsTotal: Int
     var jobsCompleted: Int
+    /// A cancel has been sent to GitHub and the run has not reported back yet.
+    var cancelling = false
+    /// Why the last cancel did not go through, shown on the card for a bit.
+    var cancelError: String?
     let url: URL
 
     var id: String { key }
@@ -135,6 +141,10 @@ struct GitHubUser: Decodable {
     let avatarUrl: String?
 }
 
+struct HeadCommit: Decodable {
+    let message: String?
+}
+
 struct WorkflowRun: Decodable {
     let id: Int
     let name: String?
@@ -150,8 +160,18 @@ struct WorkflowRun: Decodable {
     let updatedAt: Date
     let actor: GitHubUser?
     let triggeringActor: GitHubUser?
+    let headCommit: HeadCommit?
 
     var startedAt: Date { runStartedAt ?? createdAt }
+
+    /// The commit's subject line, or nil when GitHub sent none.
+    var commitSummary: String? {
+        let first = headCommit?.message?
+            .split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: true)
+            .first
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        return first.flatMap { $0.isEmpty ? nil : $0 }
+    }
 
     var whoTriggered: String? {
         triggeringActor?.login ?? actor?.login
