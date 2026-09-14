@@ -475,9 +475,17 @@ final class RunMonitor {
         action.commitMessage = run.commitSummary ?? action.commitMessage
         action.actor = run.whoTriggered ?? action.actor
 
-        let status = RunStatus(github: run.status)
+        var status = RunStatus(github: run.status)
         let wasCompleted = action.status == .completed
         let wasQueued = action.status == .queued
+
+        // Between two stages - build done, test waiting for a runner - GitHub
+        // reports the whole run as queued again. From the card's point of
+        // view the run is still running: it started once, and the clock
+        // must not stop or restart every time a job waits for a runner.
+        if status == .queued, action.status == .inProgress || action.jobsCompleted > 0 {
+            status = .inProgress
+        }
 
         // GitHub's run_started_at is usually the moment the run was queued,
         // not the moment a runner picked it up, so a run that waited five
