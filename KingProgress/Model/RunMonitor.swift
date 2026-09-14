@@ -474,10 +474,23 @@ final class RunMonitor {
         action.branch = run.headBranch ?? action.branch
         action.commitMessage = run.commitSummary ?? action.commitMessage
         action.actor = run.whoTriggered ?? action.actor
-        action.startedAt = run.startedAt
 
         let status = RunStatus(github: run.status)
         let wasCompleted = action.status == .completed
+        let wasQueued = action.status == .queued
+
+        // GitHub's run_started_at is usually the moment the run was queued,
+        // not the moment a runner picked it up, so a run that waited five
+        // minutes would open its clock at 05:00. The clock only counts
+        // running time: it starts when we see the run leave the queue,
+        // unless GitHub moved the timestamp forward itself. Later polls
+        // may only move it forward, never back to the queue time.
+        if wasQueued, status == .inProgress, run.startedAt <= action.startedAt {
+            action.startedAt = Date()
+        } else if run.startedAt > action.startedAt {
+            action.startedAt = run.startedAt
+        }
+
         action.status = status
         action.conclusion = run.conclusion
 
@@ -681,6 +694,7 @@ final class RunMonitor {
         }
         at(3) { [self] in
             running["demo-a"]?.status = .inProgress
+            running["demo-a"]?.startedAt = Date()
             publish()
         }
         at(6) { [self] in

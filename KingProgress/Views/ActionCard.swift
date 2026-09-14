@@ -21,6 +21,9 @@ struct ActionCard: View {
 
     private var state: ActionState { action.state }
     private var isRunning: Bool { state.isActive }
+    /// Waiting for a runner: nothing has happened yet, so there is nothing
+    /// to time or to estimate.
+    private var isQueued: Bool { state == .queued }
     private var isDone: Bool { !isRunning }
     private var accent: Color { state.accent }
     private var isGlass: Bool { theme == .glass }
@@ -109,8 +112,10 @@ struct ActionCard: View {
             track
                 .padding(.top, 10)
 
-            meta
-                .padding(.top, 7)
+            if !isQueued || byLine != nil {
+                meta
+                    .padding(.top, 7)
+            }
         }
         .padding(EdgeInsets(top: 12, leading: 16, bottom: 11, trailing: 14))
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -373,9 +378,11 @@ struct ActionCard: View {
 
     private var meta: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(elapsedLabel)
-                .font(.system(size: 10.5, design: .monospaced))
-                .foregroundStyle(elapsedInk)
+            if let elapsedLabel {
+                Text(elapsedLabel)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(elapsedInk)
+            }
 
             if let byLine {
                 Text(byLine)
@@ -423,6 +430,9 @@ struct ActionCard: View {
         if isDone {
             return 1
         }
+        if isQueued {
+            return 0
+        }
 
         if let expected, expected > 0 {
             // Ease out near the end so the bar never claims to be finished early.
@@ -438,7 +448,7 @@ struct ActionCard: View {
     }
 
     private var isIndeterminate: Bool {
-        isRunning && expected == nil && action.jobsTotal == 0
+        state == .running && expected == nil && action.jobsTotal == 0
     }
 
     private var detailLine: String? {
@@ -457,13 +467,19 @@ struct ActionCard: View {
         return job
     }
 
-    private var elapsedLabel: String {
-        isDone ? "Took \(formatDuration(elapsed))" : formatClock(elapsed)
+    private var elapsedLabel: String? {
+        if isQueued {
+            return nil
+        }
+        return isDone ? "Took \(formatDuration(elapsed))" : formatClock(elapsed)
     }
 
     private var rightLabel: String {
         if isDone {
             return action.jobsTotal > 0 ? "\(action.jobsTotal) jobs" : ""
+        }
+        if isQueued {
+            return "" // the detail line already says it is waiting for a runner
         }
 
         let jobs = action.jobsTotal > 0 ? "\(action.jobsCompleted)/\(action.jobsTotal) jobs" : ""
