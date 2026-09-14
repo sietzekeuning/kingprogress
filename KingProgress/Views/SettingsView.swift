@@ -32,6 +32,8 @@ struct SettingsView: View {
             divider
             section { repositories }
             divider
+            section { appearance }
+            divider
             section { startup }
             divider
             section { version }
@@ -287,6 +289,24 @@ struct SettingsView: View {
         monitor.setWatchedRepos(ordered)
     }
 
+    // MARK: - Appearance
+
+    private var appearance: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            heading("Cards")
+
+            HStack(spacing: 8) {
+                ForEach(CardTheme.allCases, id: \.self) { theme in
+                    ThemeTile(theme: theme, selected: settings.cardTheme == theme) {
+                        settings.setCardTheme(theme)
+                    }
+                }
+            }
+
+            note(settings.cardTheme.note)
+        }
+    }
+
     // MARK: - Startup
 
     private var startup: some View {
@@ -459,6 +479,102 @@ private struct RepoRow: View {
             .padding(.vertical, 1)
             .padding(.horizontal, 5)
             .background(RoundedRectangle(cornerRadius: 5).fill(Theme.border))
+    }
+}
+
+/// A miniature card in one of the two looks, as a button. The glass one
+/// sits on a bit of colour so the see-through effect is visible without
+/// waiting for a run.
+private struct ThemeTile: View {
+    let theme: CardTheme
+    let selected: Bool
+    let select: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: select) {
+            VStack(spacing: 6) {
+                ZStack {
+                    backdrop
+                    miniCard
+                        .padding(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
+                }
+                .frame(height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                Text(theme.label)
+                    .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Theme.bright : Theme.muted2)
+            }
+            .padding(5)
+            .frame(maxWidth: .infinity)
+            .background(RoundedRectangle(cornerRadius: 11).fill(hovering && !selected ? Theme.panel : .clear))
+            .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(selected ? Theme.blue : Theme.border2, lineWidth: selected ? 1.5 : 1))
+            .contentShape(RoundedRectangle(cornerRadius: 11))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovering)
+        .animation(.easeOut(duration: 0.15), value: selected)
+    }
+
+    @ViewBuilder
+    private var backdrop: some View {
+        switch theme {
+        case .classic:
+            Theme.bg
+        case .glass:
+            LinearGradient(
+                colors: [Color(hex: 0x5b3fd6), Color(hex: 0x1f6fe0), Color(hex: 0x1fb08a)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private static let miniShape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+
+    private var miniCard: some View {
+        let accent = ActionState.success.accent
+        return surfaced(
+            HStack(spacing: 7) {
+                Circle().fill(accent).frame(width: 5, height: 5)
+                VStack(alignment: .leading, spacing: 4) {
+                    Capsule().fill(Color.white.opacity(0.7)).frame(width: 46, height: 4)
+                    Capsule().fill(Color.white.opacity(0.35)).frame(width: 30, height: 3)
+                }
+                Spacer(minLength: 0)
+                Capsule().fill(accent.opacity(0.6)).frame(width: 18, height: 6)
+            }
+            .padding(EdgeInsets(top: 9, leading: 10, bottom: 9, trailing: 10))
+            .overlay(alignment: .leading) { Rectangle().fill(accent).frame(width: 2) }
+            .clipShape(Self.miniShape)
+        )
+    }
+
+    // Drawn rather than real glass: a thumbnail this small only needs to
+    // hint at the look, and drawn it also shows up in the README snapshots,
+    // which cannot capture the system's material.
+    private func surfaced(_ content: some View) -> some View {
+        content
+            .background(miniSurface)
+            .clipShape(Self.miniShape)
+            .overlay(Self.miniShape.strokeBorder(Color.white.opacity(theme == .glass ? 0.4 : 0.1), lineWidth: 1))
+            .shadow(color: .black.opacity(theme == .glass ? 0.25 : 0.5), radius: 4, y: 3)
+    }
+
+    @ViewBuilder
+    private var miniSurface: some View {
+        switch theme {
+        case .classic:
+            LinearGradient(colors: [Color(hex: 0x202731), Color(hex: 0x131820)], startPoint: .top, endPoint: .bottom)
+        case .glass:
+            ZStack {
+                Color.black.opacity(0.28)
+                Color.white.opacity(0.16)
+            }
+        }
     }
 }
 

@@ -55,6 +55,7 @@ final class PopupController {
 
     private let panel = PopupPanel()
     private let regions = HitRegions()
+    private let settings: AppSettings
     private(set) var isShowing = false
     private var interactive = false
     private var globalMonitor: Any?
@@ -64,19 +65,30 @@ final class PopupController {
     private var screenObserver: NSObjectProtocol?
 
     init(monitor: RunMonitor, openURL: @escaping (URL) -> Void) {
+        settings = monitor.settings
         let root = PopupView(monitor: monitor, regions: regions, onOpen: openURL)
-            .preferredColorScheme(.dark)
         let hosting = FirstMouseHostingView(rootView: root)
         hosting.wantsLayer = true
         hosting.layer?.backgroundColor = .clear
         panel.contentView = hosting
-        panel.appearance = NSAppearance(named: .darkAqua)
+        applyAppearance()
 
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.isShowing else { return }
                 self.panel.setFrame(self.bounds(), display: true)
             }
+        }
+    }
+
+    /// Classic cards are GitHub-dark whatever the Mac looks like. Glass
+    /// cards are meant to look like the system they float over, so they
+    /// follow its light or dark appearance - and switch along with it.
+    private func applyAppearance() {
+        withObservationTracking {
+            panel.appearance = settings.cardTheme == .glass ? nil : NSAppearance(named: .darkAqua)
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.applyAppearance() }
         }
     }
 

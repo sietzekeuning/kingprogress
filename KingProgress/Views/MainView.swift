@@ -104,6 +104,7 @@ struct MainView: View {
                         action: action,
                         now: clock.now,
                         isMine: isMine(action),
+                        theme: monitor.settings.cardTheme,
                         onDismiss: { monitor.dismiss(action.key) },
                         onOpen: { openURL(action.url) }
                     )

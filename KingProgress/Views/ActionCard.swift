@@ -6,18 +6,60 @@ struct ActionCard: View {
     let action: TrackedRun
     let now: Date
     let isMine: Bool
+    let theme: CardTheme
     let onDismiss: () -> Void
     let onOpen: () -> Void
 
     @State private var hovering = false
     @State private var pressed = false
+    @Environment(\.colorScheme) private var colorScheme
 
     private var state: ActionState { action.state }
     private var isRunning: Bool { state.isActive }
     private var isDone: Bool { !isRunning }
     private var accent: Color { state.accent }
+    private var isGlass: Bool { theme == .glass }
+
+    private static let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+
+    // Classic keeps the GitHub-dark palette. Glass uses the system's own
+    // label colours, so the text follows the Mac's light or dark look and
+    // stays readable over whatever the glass is on top of.
+    private var brightInk: Color { isGlass ? .primary : Theme.bright }
+    private var mutedInk: Color { isGlass ? .secondary : Theme.muted }
+    private var softInk: Color { isGlass ? .secondary : Theme.muted2 }
+    private var dimInk: Color { isGlass ? Color.secondary.opacity(0.75) : Theme.dim }
+    private var branchInk: Color { isGlass ? .secondary : Theme.branch }
+    private var elapsedInk: Color { isGlass ? .secondary : Theme.elapsed }
+    private var detailInk: Color { isGlass ? .accentColor : Theme.detail }
+    private var chipFill: Color { isGlass ? Color.primary.opacity(0.08) : Color.white.opacity(0.06) }
+    private var trackFill: Color { isGlass ? Color.primary.opacity(0.1) : Color.white.opacity(0.08) }
 
     var body: some View {
+        chrome(content)
+            .scaleEffect(pressed ? 0.994 : 1)
+            .animation(.easeOut(duration: 0.15), value: hovering)
+            .animation(.easeOut(duration: 0.1), value: pressed)
+            .contentShape(Self.shape)
+            .onHover { hovering = $0 }
+            // The whole card opens the run on GitHub. One gesture does both the
+            // press effect and the click: a separate tap gesture would lose to
+            // the press gesture underneath it and never fire. Dragging away
+            // before letting go cancels, like a button.
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in pressed = true }
+                    .onEnded { value in
+                        pressed = false
+                        if abs(value.translation.width) < 8, abs(value.translation.height) < 8 {
+                            onOpen()
+                        }
+                    }
+            )
+            .help("Open this run on GitHub")
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             head
 
@@ -27,7 +69,7 @@ struct ActionCard: View {
             if let detailLine {
                 Text(detailLine)
                     .font(.system(size: 11.5))
-                    .foregroundStyle(Theme.detail)
+                    .foregroundStyle(detailInk)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .padding(.top, 6)
@@ -42,17 +84,6 @@ struct ActionCard: View {
         }
         .padding(EdgeInsets(top: 12, leading: 16, bottom: 11, trailing: 14))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [Color(hex: 0x202731, opacity: 0.97), Color(hex: 0x131820, opacity: 0.97)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .overlay(alignment: .top) {
-            // The 1px inset highlight along the top edge.
-            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
-        }
         .overlay(alignment: .leading) {
             // Left edge accent, doubles as the at-a-glance status colour.
             Rectangle()
@@ -74,33 +105,70 @@ struct ActionCard: View {
                 .frame(height: 2)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(hovering ? accent.mixed(with: Color.white.opacity(0.09), fraction: 0.6) : Color.white.opacity(0.09), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(hovering ? 0.75 : 0.7), radius: hovering ? 14 : 12, y: hovering ? 12 : 10)
-        .shadow(color: .black.opacity(0.5), radius: 3, y: 2)
-        .scaleEffect(pressed ? 0.994 : 1)
-        .animation(.easeOut(duration: 0.15), value: hovering)
-        .animation(.easeOut(duration: 0.1), value: pressed)
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .onHover { hovering = $0 }
-        // The whole card opens the run on GitHub. One gesture does both the
-        // press effect and the click: a separate tap gesture would lose to
-        // the press gesture underneath it and never fire. Dragging away
-        // before letting go cancels, like a button.
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in pressed = true }
-                .onEnded { value in
-                    pressed = false
-                    if abs(value.translation.width) < 8, abs(value.translation.height) < 8 {
-                        onOpen()
-                    }
+    }
+
+    // MARK: - Chrome
+
+    /// Dresses the content as a card. Glass is the system's own Liquid
+    /// Glass where the Mac has it (macOS 26 and up), so the cards look like
+    /// the rest of the system they are floating over: the OS draws the
+    /// material, the rim light and the shadow. Older systems get a frosted
+    /// stand-in built on the same backdrop blur the HUD panels use.
+    @ViewBuilder
+    private func chrome(_ content: some View) -> some View {
+        if #available(macOS 26, *), isGlass {
+            content
+                .clipShape(Self.shape)
+                .glassEffect(.regular.interactive(), in: Self.shape)
+        } else {
+            content
+                .background(surface)
+                .overlay(alignment: .top) {
+                    // The 1px inset highlight along the top edge; a glass pane
+                    // catches more light there.
+                    Rectangle().fill(Color.white.opacity(isGlass ? 0.3 : 0.06)).frame(height: 1)
                 }
-        )
-        .help("Open this run on GitHub")
+                .clipShape(Self.shape)
+                .overlay(Self.shape.strokeBorder(edge, lineWidth: 1))
+                .shadow(color: .black.opacity(shadowStrength), radius: hovering ? 14 : 12, y: hovering ? 12 : 10)
+                .shadow(color: .black.opacity(isGlass ? 0.25 : 0.5), radius: 3, y: 2)
+        }
+    }
+
+    /// What the card is made of, when the system does not draw it for us:
+    /// a solid dark gradient, or a frosted pane with a faint sheen.
+    @ViewBuilder
+    private var surface: some View {
+        switch theme {
+        case .classic:
+            LinearGradient(
+                colors: [Color(hex: 0x202731, opacity: 0.97), Color(hex: 0x131820, opacity: 0.97)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .glass:
+            ZStack {
+                FrostedBackdrop()
+                LinearGradient(
+                    colors: [Color.white.opacity(0.12), Color.white.opacity(0.03)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
+    }
+
+    private var edge: Color {
+        let rest = Color.white.opacity(isGlass ? 0.24 : 0.09)
+        return hovering ? accent.mixed(with: rest, fraction: 0.6) : rest
+    }
+
+    // A glass pane floats lighter than a solid slab.
+    private var shadowStrength: Double {
+        if isGlass {
+            return hovering ? 0.45 : 0.38
+        }
+        return hovering ? 0.75 : 0.7
     }
 
     // MARK: - Pieces
@@ -122,8 +190,8 @@ struct ActionCard: View {
             // The repository is what you scan for first, so it leads the card.
             // Its owner is nearly always the same across runs, so it is there
             // but dimmed.
-            (Text(repoOwner.isEmpty ? "" : "\(repoOwner)/").foregroundColor(Theme.muted).fontWeight(.medium)
-                + Text(repoName).foregroundColor(Theme.bright).fontWeight(.semibold))
+            (Text(repoOwner.isEmpty ? "" : "\(repoOwner)/").foregroundColor(mutedInk).fontWeight(.medium)
+                + Text(repoName).foregroundColor(brightInk).fontWeight(.semibold))
                 .font(.system(size: 13))
                 .tracking(-0.13)
                 .lineLimit(1)
@@ -133,13 +201,13 @@ struct ActionCard: View {
 
             Image(systemName: "arrow.up.right")
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Theme.muted2)
+                .foregroundStyle(softInk)
                 .opacity(hovering ? 0.75 : 0)
                 .padding(.leading, -2)
 
             pill
 
-            DismissButton(action: onDismiss)
+            DismissButton(glass: isGlass, action: onDismiss)
                 .padding(.trailing, -3)
         }
     }
@@ -155,10 +223,19 @@ struct ActionCard: View {
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 9)
-        .foregroundStyle(accent.mixed(with: .white, fraction: 0.18))
+        .foregroundStyle(pillInk)
         .background(Capsule().fill(state.accentSoft))
         .overlay(Capsule().strokeBorder(accent.opacity(0.45), lineWidth: 1))
         .fixedSize()
+    }
+
+    // Lightened on dark, deepened on light, so the label keeps its
+    // contrast against the soft fill either way.
+    private var pillInk: Color {
+        if isGlass, colorScheme == .light {
+            return accent.mixed(with: .black, fraction: 0.3)
+        }
+        return accent.mixed(with: .white, fraction: 0.18)
     }
 
     private var workflowLine: some View {
@@ -175,25 +252,25 @@ struct ActionCard: View {
             if let branch = action.branch {
                 Text(branch)
                     .font(Theme.mono)
-                    .foregroundStyle(Theme.branch)
+                    .foregroundStyle(branchInk)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .padding(.vertical, 1)
                     .padding(.horizontal, 6)
-                    .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.06)))
+                    .background(RoundedRectangle(cornerRadius: 5).fill(chipFill))
                     .frame(maxWidth: 140, alignment: .leading)
                     .fixedSize(horizontal: true, vertical: false)
                     .layoutPriority(1)
             }
         }
         .font(.system(size: 11))
-        .foregroundStyle(Theme.muted2)
+        .foregroundStyle(softInk)
     }
 
     private var track: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.08))
+                Capsule().fill(trackFill)
 
                 if isIndeterminate {
                     // No history and no jobs yet: show motion instead of a lie.
@@ -215,11 +292,11 @@ struct ActionCard: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(elapsedLabel)
                 .font(.system(size: 10.5, design: .monospaced))
-                .foregroundStyle(Theme.elapsed)
+                .foregroundStyle(elapsedInk)
 
             if let byLine {
                 Text(byLine)
-                    .foregroundStyle(Theme.dim)
+                    .foregroundStyle(dimInk)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -232,7 +309,7 @@ struct ActionCard: View {
         }
         .font(.system(size: 10.5))
         .monospacedDigit()
-        .foregroundStyle(Theme.muted)
+        .foregroundStyle(mutedInk)
     }
 
     // MARK: - Derived values
@@ -384,8 +461,16 @@ private struct SweepingFill: View {
 }
 
 private struct DismissButton: View {
+    let glass: Bool
     let action: () -> Void
     @State private var hovering = false
+
+    private var ink: Color {
+        if glass {
+            return hovering ? .primary : .secondary
+        }
+        return hovering ? Theme.bright : Theme.muted2
+    }
 
     var body: some View {
         Button(action: action) {
@@ -395,10 +480,10 @@ private struct DismissButton: View {
                 path.move(to: CGPoint(x: 10, y: 2))
                 path.addLine(to: CGPoint(x: 2, y: 10))
             }
-            .stroke(hovering ? Theme.bright : Theme.muted2, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+            .stroke(ink, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
             .frame(width: 12, height: 12)
             .frame(width: 18, height: 18)
-            .background(Circle().fill(Color.white.opacity(hovering ? 0.1 : 0)))
+            .background(Circle().fill((glass ? Color.primary : Color.white).opacity(hovering ? 0.1 : 0)))
             .opacity(hovering ? 1 : 0.55)
             .contentShape(Circle())
         }

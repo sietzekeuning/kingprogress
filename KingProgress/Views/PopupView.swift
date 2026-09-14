@@ -34,6 +34,8 @@ struct PopupView: View {
 
     private let slide = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.42)
 
+    private var theme: CardTheme { monitor.settings.cardTheme }
+
     var body: some View {
         VStack(spacing: 0) {
             // Sits above the stack; only appears once there is more than one card.
@@ -43,7 +45,7 @@ struct PopupView: View {
                     Button("Clear all \(monitor.actions.count)") {
                         monitor.dismissAll()
                     }
-                    .buttonStyle(ClearAllStyle())
+                    .buttonStyle(ClearAllStyle(glass: theme == .glass))
                     .hitRegion("clear-all")
                 }
                 .padding(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
@@ -56,6 +58,7 @@ struct PopupView: View {
                         action: action,
                         now: clock.now,
                         isMine: isMine(action),
+                        theme: theme,
                         onDismiss: { monitor.dismiss(action.key) },
                         onOpen: { onOpen(action.url) }
                     )
@@ -89,21 +92,38 @@ struct PopupView: View {
 }
 
 private struct ClearAllStyle: ButtonStyle {
+    let glass: Bool
     @State private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let label = configuration.label
             .font(.system(size: 10.5, weight: .medium))
-            .foregroundStyle(hovering ? Theme.bright : Theme.muted2)
+            .foregroundStyle(ink)
             .padding(.vertical, 3)
             .padding(.horizontal, 10)
-            .background(Capsule().fill(Color(hex: 0x161b22, opacity: 0.9)))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(hovering ? 0.22 : 0.1)))
-            .shadow(color: .black.opacity(0.7), radius: 9, y: 6)
-            .opacity(hovering ? 1 : 0.75)
-            .contentShape(Capsule())
-            .onHover { hovering = $0 }
-            .animation(.easeOut(duration: 0.15), value: hovering)
+
+        return Group {
+            if #available(macOS 26, *), glass {
+                // The same glass as the cards, as a small system-style pill.
+                label.glassEffect(.regular.interactive(), in: Capsule())
+            } else {
+                label
+                    .background(Capsule().fill(Color(hex: 0x161b22, opacity: 0.9)))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(hovering ? 0.22 : 0.1)))
+                    .shadow(color: .black.opacity(0.7), radius: 9, y: 6)
+            }
+        }
+        .opacity(hovering ? 1 : 0.75)
+        .contentShape(Capsule())
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovering)
+    }
+
+    private var ink: Color {
+        if glass {
+            return hovering ? .primary : .secondary
+        }
+        return hovering ? Theme.bright : Theme.muted2
     }
 }
 

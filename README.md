@@ -26,6 +26,7 @@ they never get in the way of the window underneath — until you move your curso
 | **Click to open** | Clicking a card opens that run on GitHub in your browser. |
 | **Dismissable** | The `×` gets rid of a card immediately, and `Clear all` clears the stack. A dismissed run stays gone; the next run shows up as normal. |
 | **Yours only, if you like** | Filter runs by who triggered them, and pick exactly which repositories to watch. |
+| **Two looks** | Classic solid cards, or Liquid Glass like the rest of macOS 26, following the system's light or dark appearance (older versions get a frosted stand-in). Pick one under **Cards** in the settings. |
 | **Updates itself** | Sparkle checks for a new version every six hours, downloads it in the background and installs it the next time KingProgress restarts. |
 | **Light on the Mac** | Swift, AppKit and SwiftUI — no browser engine. One process that idles at zero CPU. |
 

@@ -1,6 +1,33 @@
 import Foundation
 import Observation
 
+/// How the cards are drawn. Classic is the solid GitHub-dark look the
+/// Electron version had; glass is a frosted pane that blurs whatever is
+/// behind it.
+enum CardTheme: String, CaseIterable, Codable {
+    case classic
+    case glass
+
+    var label: String {
+        switch self {
+        case .classic: "Classic"
+        case .glass: "Glass"
+        }
+    }
+
+    var note: String {
+        switch self {
+        case .classic:
+            return "Solid dark cards, the way KingProgress has always looked."
+        case .glass:
+            if #available(macOS 26, *) {
+                return "Liquid Glass, like the rest of your Mac. Follows the system's light or dark appearance."
+            }
+            return "Frosted, see-through cards that blur whatever is behind them. Follows the system's light or dark appearance."
+        }
+    }
+}
+
 /// Everything KingProgress remembers between launches. Plain values go to
 /// UserDefaults; the token goes to the keychain.
 @MainActor
@@ -22,6 +49,7 @@ final class AppSettings {
     private(set) var actorFilter: ActorFilter
     private(set) var account: Account?
     private(set) var openAtLogin: Bool
+    private(set) var cardTheme: CardTheme
 
     init() {
         watchedRepos = defaults.stringArray(forKey: "watchedRepos") ?? []
@@ -32,6 +60,7 @@ final class AppSettings {
         // the honest default is the one where it is simply there after a
         // restart. The setting turns it off.
         openAtLogin = defaults.object(forKey: "openAtLogin") as? Bool ?? true
+        cardTheme = defaults.string(forKey: "cardTheme").flatMap(CardTheme.init(rawValue:)) ?? .classic
     }
 
     var token: String? {
@@ -73,5 +102,10 @@ final class AppSettings {
     func setOpenAtLogin(_ enabled: Bool) {
         openAtLogin = enabled
         defaults.set(enabled, forKey: "openAtLogin")
+    }
+
+    func setCardTheme(_ theme: CardTheme) {
+        cardTheme = theme
+        defaults.set(theme.rawValue, forKey: "cardTheme")
     }
 }

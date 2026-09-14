@@ -67,6 +67,26 @@ extension ActionState {
 
 // MARK: - Small reusable pieces
 
+/// The system's frosted backdrop, for the glass cards. `behindWindow` blurs
+/// whatever is on screen underneath - the floating panel is transparent, so
+/// that is the user's own windows and desktop. Kept `.active` so it never
+/// goes flat: the panel is a non-activating HUD and is never the key window.
+struct FrostedBackdrop: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .hudWindow
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = material
+    }
+}
+
 /// A 24x24 icon button in the window's header bar.
 struct HeaderIconButton: View {
     let systemName: String
