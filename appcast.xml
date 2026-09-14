@@ -6,5 +6,15 @@
         <description>Updates for the KingProgress menu bar app. Read by installed copies through https://raw.githubusercontent.com/sietzekeuning/kingprogress/master/appcast.xml; newest release first.</description>
         <language>en</language>
         <!-- releases -->
+        <item>
+            <title>KingProgress 1.6.0</title>
+            <pubDate>Mon, 14 Sep 2026 08:33:04 +0000</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <link>https://github.com/sietzekeuning/kingprogress</link>
+            <sparkle:releaseNotesLink>https://github.com/sietzekeuning/kingprogress/releases/tag/v1.6.0</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/sietzekeuning/kingprogress/releases/download/v1.6.0/KingProgress-1.6.0.zip" length="2497827" type="application/octet-stream" sparkle:edSignature="w6WVJuuuPG/Ozom+DFd7/UDR9TSVVCWaIrukVdahoH9tIV60o2yP/w/tqlV/k/u2SP21qocbBI6IiL57NK2UCg==" />
+        </item>
     </channel>
 </rss>
