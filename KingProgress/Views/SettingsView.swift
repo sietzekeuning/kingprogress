@@ -323,6 +323,22 @@ struct SettingsView: View {
             note(settings.showCommitMessage
                 ? "Each card shows the subject line of the commit it is building, so you can see what is deploying."
                 : "Cards show only the workflow and branch.")
+
+            HStack(spacing: 10) {
+                Text("Position on screen")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.text)
+                Spacer()
+                Button("Back to the top right") {
+                    settings.setPopupOffset(.zero)
+                }
+                .buttonStyle(GhostButtonStyle(small: true))
+                .disabled(settings.popupOffset == .zero)
+                .opacity(settings.popupOffset == .zero ? 0.5 : 1)
+            }
+            .padding(.top, 14)
+
+            note("Drag any card to move the whole stack out of the way. It stays where you leave it.")
         }
     }
 

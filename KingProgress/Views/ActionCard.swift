@@ -1,4 +1,17 @@
+import AppKit
 import SwiftUI
+
+/// A drag on a card in the floating stack, which moves the whole stack. The
+/// card only says that it is happening; whoever owns the stack follows the
+/// cursor itself, in screen coordinates. The card's own coordinates are no
+/// use for that: they move along with the stack, so the distance dragged
+/// would keep collapsing back to nothing.
+enum StackDragPhase {
+    /// The press turned into a drag. Carries where on screen it was pressed.
+    case began(CGPoint)
+    case moved
+    case ended
+}
 
 /// One workflow run. The same card is used in the floating stack and in
 /// the window.
@@ -12,9 +25,18 @@ struct ActionCard: View {
     let onDismiss: () -> Void
     let onOpen: () -> Void
     let onCancel: () -> Void
+    /// Set in the floating stack, where dragging a card moves the stack. In
+    /// the window a card stays where it is.
+    var onDrag: ((StackDragPhase) -> Void)? = nil
+
+    /// How far a press may wander and still be a click.
+    private static let dragSlop: CGFloat = 5
 
     @State private var hovering = false
     @State private var pressed = false
+    /// Where on screen the current press started.
+    @State private var pressOrigin: CGPoint?
+    @State private var dragging = false
     /// The stop button was clicked; the head row is asking "are you sure?".
     @State private var confirming = false
     @Environment(\.colorScheme) private var colorScheme
@@ -60,12 +82,20 @@ struct ActionCard: View {
             // press effect and the click: a separate tap gesture would lose to
             // the press gesture underneath it and never fire. Dragging away
             // before letting go cancels, like a button. While the card is
-            // asking about a cancel, a click just withdraws the question.
+            // asking about a cancel, a click just withdraws the question. In
+            // the floating stack, dragging away moves the stack instead.
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .onChanged { _ in pressed = true }
+                    .onChanged { _ in trackPress() }
                     .onEnded { value in
+                        let wasDragging = dragging
                         pressed = false
+                        pressOrigin = nil
+                        dragging = false
+                        if wasDragging {
+                            onDrag?(.ended)
+                            return
+                        }
                         guard abs(value.translation.width) < 8, abs(value.translation.height) < 8 else { return }
                         if confirming {
                             confirming = false
@@ -75,6 +105,28 @@ struct ActionCard: View {
                     }
             )
             .help("Open this run on GitHub")
+    }
+
+    private func trackPress() {
+        let mouse = NSEvent.mouseLocation
+
+        guard let pressOrigin else {
+            pressOrigin = mouse
+            pressed = true
+            return
+        }
+        guard let onDrag else {
+            return
+        }
+
+        if !dragging {
+            guard hypot(mouse.x - pressOrigin.x, mouse.y - pressOrigin.y) > Self.dragSlop else { return }
+            dragging = true
+            pressed = false
+            confirming = false
+            onDrag(.began(pressOrigin))
+        }
+        onDrag(.moved)
     }
 
     private var content: some View {

@@ -29,6 +29,8 @@ struct PopupView: View {
     let monitor: RunMonitor
     let regions: HitRegions
     let onOpen: (URL) -> Void
+    /// Dragging any card moves the whole stack.
+    var onDrag: (StackDragPhase) -> Void = { _ in }
 
     @State private var clock = Clock()
 
@@ -38,15 +40,32 @@ struct PopupView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Sits above the stack; only appears once there is more than one card.
-            if monitor.actions.count > 1 {
-                HStack {
+            // Sits above the stack; only appears once there is something to
+            // do with the stack as a whole: more than one card to clear, or
+            // a stack that was dragged away and can go back home.
+            if monitor.actions.count > 1 || (isMoved && !monitor.actions.isEmpty) {
+                HStack(spacing: 6) {
                     Spacer()
-                    Button("Clear all \(monitor.actions.count)") {
-                        monitor.dismissAll()
+                    if isMoved {
+                        Button {
+                            monitor.settings.setPopupOffset(.zero)
+                        } label: {
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .frame(height: 13)
+                        }
+                        .buttonStyle(StackPillStyle(glass: theme == .glass))
+                        .help("Back to the top right")
+                        .hitRegion("go-home")
+                        .transition(.opacity)
                     }
-                    .buttonStyle(ClearAllStyle(glass: theme == .glass))
-                    .hitRegion("clear-all")
+                    if monitor.actions.count > 1 {
+                        Button("Clear all \(monitor.actions.count)") {
+                            monitor.dismissAll()
+                        }
+                        .buttonStyle(StackPillStyle(glass: theme == .glass))
+                        .hitRegion("clear-all")
+                    }
                 }
                 .padding(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
                 .transition(.opacity.combined(with: .offset(y: -6)))
@@ -62,7 +81,8 @@ struct PopupView: View {
                         showCommit: monitor.settings.showCommitMessage,
                         onDismiss: { monitor.dismiss(action.key) },
                         onOpen: { onOpen(action.url) },
-                        onCancel: { Task { await monitor.cancel(action.key) } }
+                        onCancel: { Task { await monitor.cancel(action.key) } },
+                        onDrag: onDrag
                     )
                     .hitRegion(action.key)
                     // The padding doubles as the gap between cards and as
@@ -78,6 +98,7 @@ struct PopupView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .coordinateSpace(name: "popup")
         .animation(slide, value: monitor.actions.map(\.key))
+        .animation(slide, value: isMoved)
         .onPreferenceChange(HitRegionKey.self) { rects in
             Task { @MainActor in regions.rects = rects }
         }
@@ -87,13 +108,16 @@ struct PopupView: View {
         .onDisappear { clock.setRunning(false) }
     }
 
+    /// The stack has been dragged away from its home in the top-right corner.
+    private var isMoved: Bool { monitor.settings.popupOffset != .zero }
+
     private func isMine(_ action: TrackedRun) -> Bool {
         guard let actor = action.actor, let me = monitor.myLogin else { return false }
         return actor.caseInsensitiveCompare(me) == .orderedSame
     }
 }
 
-private struct ClearAllStyle: ButtonStyle {
+private struct StackPillStyle: ButtonStyle {
     let glass: Bool
     @State private var hovering = false
 

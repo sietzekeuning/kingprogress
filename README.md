@@ -26,6 +26,7 @@ they never get in the way of the window underneath — until you move your curso
 | **Sticks around** | A finished run stays for 20 seconds — green for passed, red for failed — with a thin bar draining along the bottom edge, then slides away on its own. |
 | **Click to open** | Clicking a card opens that run on GitHub in your browser. |
 | **Cancel from the card** | The stop button on a running card cancels the run on GitHub, after a quick "are you sure?" on the card itself — no dialog stealing focus. |
+| **Drag it out of the way** | Drag any card and the whole stack comes along — no window frame, just the cards. It stays where you drop it, also after a restart; the little arrow that appears next to `Clear all` sends it back home to the top-right corner. |
 | **Dismissable** | The `×` gets rid of a card immediately, and `Clear all` clears the stack. A dismissed run stays gone; the next run shows up as normal. |
 | **Yours only, if you like** | Filter runs by who triggered them, and pick exactly which repositories to watch. |
 | **Two looks** | Classic solid cards, or Liquid Glass like the rest of macOS 26, following the system's light or dark appearance (older versions get a frosted stand-in). Pick one under **Cards** in the settings. |

@@ -52,6 +52,9 @@ final class AppSettings {
     private(set) var cardTheme: CardTheme
     /// Show the subject of the commit each run is building on its card.
     private(set) var showCommitMessage: Bool
+    /// How far the stack of cards has been dragged from its home in the
+    /// top-right corner, in screen points (x to the right, y up). Zero is home.
+    private(set) var popupOffset: CGSize
 
     init() {
         watchedRepos = defaults.stringArray(forKey: "watchedRepos") ?? []
@@ -64,6 +67,7 @@ final class AppSettings {
         openAtLogin = defaults.object(forKey: "openAtLogin") as? Bool ?? true
         cardTheme = defaults.string(forKey: "cardTheme").flatMap(CardTheme.init(rawValue:)) ?? .classic
         showCommitMessage = defaults.object(forKey: "showCommitMessage") as? Bool ?? true
+        popupOffset = CGSize(width: defaults.double(forKey: "popupOffsetX"), height: defaults.double(forKey: "popupOffsetY"))
     }
 
     var token: String? {
@@ -115,5 +119,11 @@ final class AppSettings {
     func setShowCommitMessage(_ enabled: Bool) {
         showCommitMessage = enabled
         defaults.set(enabled, forKey: "showCommitMessage")
+    }
+
+    func setPopupOffset(_ offset: CGSize) {
+        popupOffset = offset
+        defaults.set(Double(offset.width), forKey: "popupOffsetX")
+        defaults.set(Double(offset.height), forKey: "popupOffsetY")
     }
 }
