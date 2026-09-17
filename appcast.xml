@@ -7,6 +7,16 @@
         <language>en</language>
         <!-- releases -->
         <item>
+            <title>KingProgress 1.8.0</title>
+            <pubDate>Thu, 17 Sep 2026 10:05:16 +0000</pubDate>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>1.8.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <link>https://github.com/sietzekeuning/kingprogress</link>
+            <sparkle:releaseNotesLink>https://github.com/sietzekeuning/kingprogress/releases/tag/v1.8.0</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/sietzekeuning/kingprogress/releases/download/v1.8.0/KingProgress-1.8.0.zip" length="2605216" type="application/octet-stream" sparkle:edSignature="OhQR5VV4/Ud+LmE++b2Pm0twpsHd2CSjIh0mfxudZ09v81rokq9NL+RJjw+ZtYuT1VL50shPbkGdnUCCHzF5DA==" />
+        </item>
+        <item>
             <title>KingProgress 1.7.2</title>
             <pubDate>Mon, 14 Sep 2026 09:28:41 +0000</pubDate>
             <sparkle:version>6</sparkle:version>
