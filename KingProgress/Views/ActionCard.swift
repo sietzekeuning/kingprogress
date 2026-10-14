@@ -29,14 +29,7 @@ struct ActionCard: View {
     /// the window a card stays where it is.
     var onDrag: ((StackDragPhase) -> Void)? = nil
 
-    /// How far a press may wander and still be a click.
-    private static let dragSlop: CGFloat = 5
-
     @State private var hovering = false
-    @State private var pressed = false
-    /// Where on screen the current press started.
-    @State private var pressOrigin: CGPoint?
-    @State private var dragging = false
     /// The stop button was clicked; the head row is asking "are you sure?".
     @State private var confirming = false
     @Environment(\.colorScheme) private var colorScheme
@@ -50,15 +43,12 @@ struct ActionCard: View {
     private var accent: Color { state.accent }
     private var isGlass: Bool { theme == .glass }
 
-    private static let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-
-    // Classic keeps the GitHub-dark palette. Glass uses the system's own
-    // label colours, so the text follows the Mac's light or dark look and
-    // stays readable over whatever the glass is on top of.
-    private var brightInk: Color { isGlass ? .primary : Theme.bright }
-    private var textInk: Color { isGlass ? Color.primary.opacity(0.85) : Theme.cardText }
-    private var mutedInk: Color { isGlass ? .secondary : Theme.muted }
-    private var softInk: Color { isGlass ? .secondary : Theme.muted2 }
+    // The inks every card shares, plus the few only a run has.
+    private var ink: CardInk { CardInk(glass: isGlass) }
+    private var brightInk: Color { ink.bright }
+    private var textInk: Color { ink.text }
+    private var mutedInk: Color { ink.muted }
+    private var softInk: Color { ink.soft }
     private var dimInk: Color { isGlass ? Color.secondary.opacity(0.75) : Theme.dim }
     private var branchInk: Color { isGlass ? .secondary : Theme.branch }
     private var elapsedInk: Color { isGlass ? .secondary : Theme.elapsed }
@@ -67,66 +57,27 @@ struct ActionCard: View {
     private var trackFill: Color { isGlass ? Color.primary.opacity(0.1) : Color.white.opacity(0.08) }
 
     var body: some View {
-        chrome(content)
-            .scaleEffect(pressed ? 0.994 : 1)
+        content
+            .modifier(CardChrome(theme: theme, hovering: hovering, tint: accent))
             .animation(.easeOut(duration: 0.15), value: hovering)
-            .animation(.easeOut(duration: 0.1), value: pressed)
-            .contentShape(Self.shape)
+            .contentShape(CardChrome.shape)
             .onHover { over in
                 hovering = over
                 if !over {
                     confirming = false
                 }
             }
-            // The whole card opens the run on GitHub. One gesture does both the
-            // press effect and the click: a separate tap gesture would lose to
-            // the press gesture underneath it and never fire. Dragging away
-            // before letting go cancels, like a button. While the card is
-            // asking about a cancel, a click just withdraws the question. In
-            // the floating stack, dragging away moves the stack instead.
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in trackPress() }
-                    .onEnded { value in
-                        let wasDragging = dragging
-                        pressed = false
-                        pressOrigin = nil
-                        dragging = false
-                        if wasDragging {
-                            onDrag?(.ended)
-                            return
-                        }
-                        guard abs(value.translation.width) < 8, abs(value.translation.height) < 8 else { return }
-                        if confirming {
-                            confirming = false
-                        } else {
-                            onOpen()
-                        }
-                    }
-            )
+            // The whole card opens the run on GitHub. While the card is
+            // asking about a cancel, a click just withdraws the question, and
+            // so does dragging the stack away.
+            .modifier(CardPress(onDrag: onDrag, onDragBegan: { confirming = false }) {
+                if confirming {
+                    confirming = false
+                } else {
+                    onOpen()
+                }
+            })
             .help("Open this run on GitHub")
-    }
-
-    private func trackPress() {
-        let mouse = NSEvent.mouseLocation
-
-        guard let pressOrigin else {
-            pressOrigin = mouse
-            pressed = true
-            return
-        }
-        guard let onDrag else {
-            return
-        }
-
-        if !dragging {
-            guard hypot(mouse.x - pressOrigin.x, mouse.y - pressOrigin.y) > Self.dragSlop else { return }
-            dragging = true
-            pressed = false
-            confirming = false
-            onDrag(.began(pressOrigin))
-        }
-        onDrag(.moved)
     }
 
     private var content: some View {
@@ -173,89 +124,14 @@ struct ActionCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .leading) {
             // Left edge accent, doubles as the at-a-glance status colour.
-            Rectangle()
-                .fill(accent)
-                .frame(width: 3)
-                .shadow(color: accent, radius: 6)
-                .opacity(0.9)
+            AccentEdge(colors: [accent])
         }
         .overlay(alignment: .bottom) {
             if isDone {
                 // Countdown to the automatic dismissal of a finished card.
-                GeometryReader { proxy in
-                    Rectangle()
-                        .fill(accent)
-                        .opacity(0.5)
-                        .frame(width: proxy.size.width * lingerFraction, height: 2)
-                        .animation(.linear(duration: 0.6), value: lingerFraction)
-                }
-                .frame(height: 2)
+                LingerBar(color: accent, fraction: lingerFraction)
             }
         }
-    }
-
-    // MARK: - Chrome
-
-    /// Dresses the content as a card. Glass is the system's own Liquid
-    /// Glass where the Mac has it (macOS 26 and up), so the cards look like
-    /// the rest of the system they are floating over: the OS draws the
-    /// material, the rim light and the shadow. Older systems get a frosted
-    /// stand-in built on the same backdrop blur the HUD panels use.
-    @ViewBuilder
-    private func chrome(_ content: some View) -> some View {
-        if #available(macOS 26, *), isGlass {
-            content
-                .clipShape(Self.shape)
-                .glassEffect(.regular.interactive(), in: Self.shape)
-        } else {
-            content
-                .background(surface)
-                .overlay(alignment: .top) {
-                    // The 1px inset highlight along the top edge; a glass pane
-                    // catches more light there.
-                    Rectangle().fill(Color.white.opacity(isGlass ? 0.3 : 0.06)).frame(height: 1)
-                }
-                .clipShape(Self.shape)
-                .overlay(Self.shape.strokeBorder(edge, lineWidth: 1))
-                .shadow(color: .black.opacity(shadowStrength), radius: hovering ? 14 : 12, y: hovering ? 12 : 10)
-                .shadow(color: .black.opacity(isGlass ? 0.25 : 0.5), radius: 3, y: 2)
-        }
-    }
-
-    /// What the card is made of, when the system does not draw it for us:
-    /// a solid dark gradient, or a frosted pane with a faint sheen.
-    @ViewBuilder
-    private var surface: some View {
-        switch theme {
-        case .classic:
-            LinearGradient(
-                colors: [Color(hex: 0x202731, opacity: 0.97), Color(hex: 0x131820, opacity: 0.97)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        case .glass:
-            ZStack {
-                FrostedBackdrop()
-                LinearGradient(
-                    colors: [Color.white.opacity(0.12), Color.white.opacity(0.03)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
-        }
-    }
-
-    private var edge: Color {
-        let rest = Color.white.opacity(isGlass ? 0.24 : 0.09)
-        return hovering ? accent.mixed(with: rest, fraction: 0.6) : rest
-    }
-
-    // A glass pane floats lighter than a solid slab.
-    private var shadowStrength: Double {
-        if isGlass {
-            return hovering ? 0.45 : 0.38
-        }
-        return hovering ? 0.75 : 0.7
     }
 
     // MARK: - Pieces
@@ -614,40 +490,6 @@ private struct SweepingFill: View {
     }
 }
 
-private struct DismissButton: View {
-    let glass: Bool
-    let action: () -> Void
-    @State private var hovering = false
-
-    private var ink: Color {
-        if glass {
-            return hovering ? .primary : .secondary
-        }
-        return hovering ? Theme.bright : Theme.muted2
-    }
-
-    var body: some View {
-        Button(action: action) {
-            Path { path in
-                path.move(to: CGPoint(x: 2, y: 2))
-                path.addLine(to: CGPoint(x: 10, y: 10))
-                path.move(to: CGPoint(x: 10, y: 2))
-                path.addLine(to: CGPoint(x: 2, y: 10))
-            }
-            .stroke(ink, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
-            .frame(width: 12, height: 12)
-            .frame(width: 18, height: 18)
-            .background(Circle().fill((glass ? Color.primary : Color.white).opacity(hovering ? 0.1 : 0)))
-            .opacity(hovering ? 1 : 0.55)
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .help("Dismiss")
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.15), value: hovering)
-    }
-}
-
 /// The stop square next to the dismiss cross on a running card. Red only
 /// on hover, so a row of running cards does not look like a row of alarms.
 private struct CancelButton: View {
@@ -669,25 +511,6 @@ private struct CancelButton: View {
         .help("Cancel this run")
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
-    }
-}
-
-/// The "Cancel run" pill in the confirm strip.
-private struct InlineButtonStyle: ButtonStyle {
-    let tint: Color
-    @State private var hovering = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 10.5, weight: .semibold))
-            .padding(.vertical, 2.5)
-            .padding(.horizontal, 9)
-            .foregroundStyle(Color.white)
-            .background(Capsule().fill(tint.opacity(hovering ? 1 : 0.85)))
-            .opacity(configuration.isPressed ? 0.7 : 1)
-            .contentShape(Capsule())
-            .onHover { hovering = $0 }
-            .animation(.easeOut(duration: 0.15), value: hovering)
     }
 }
 
