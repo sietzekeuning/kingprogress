@@ -23,14 +23,49 @@ private extension View {
     }
 }
 
+/// Which cards the stack shows. The window lists the same runs as the
+/// stack, so while it is open the stack keeps to the cards from other apps,
+/// which the window does not have.
+@MainActor
+@Observable
+final class StackScope {
+    var includesRuns = true
+}
+
+/// One card in the stack: a run, or a card from another app.
+private enum StackItem: Identifiable {
+    case run(TrackedRun)
+    case card(ExternalCard)
+
+    var id: String {
+        switch self {
+        case .run(let action): "run:\(action.key)"
+        case .card(let card): "card:\(card.key)"
+        }
+    }
+
+    /// When it joined the stack: a run when it started, a card when it was
+    /// first shown.
+    var arrival: Date {
+        switch self {
+        case .run(let action): action.startedAt
+        case .card(let card): card.arrivedAt
+        }
+    }
+}
+
 /// The stack of cards in the top-right corner of the screen. Nothing outside
 /// the cards themselves is painted: the panel is transparent.
 struct PopupView: View {
     let monitor: RunMonitor
+    let cards: ExternalCards
+    let scope: StackScope
     let regions: HitRegions
     let onOpen: (URL) -> Void
     /// Dragging any card moves the whole stack.
     var onDrag: (StackDragPhase) -> Void = { _ in }
+    /// For snapshots: the card drawn as if the cursor were on it.
+    var hoverPreview: String? = nil
 
     @State private var clock = Clock()
 
@@ -38,12 +73,23 @@ struct PopupView: View {
 
     private var theme: CardTheme { monitor.settings.cardTheme }
 
+    /// Runs and cards from other apps in one column, newest first, in the
+    /// order they arrived - not grouped by where they came from.
+    private var items: [StackItem] {
+        let runs = scope.includesRuns ? monitor.actions.map(StackItem.run) : []
+        return (runs + cards.items.map(StackItem.card)).sorted { a, b in
+            a.arrival == b.arrival ? a.id < b.id : a.arrival > b.arrival
+        }
+    }
+
     var body: some View {
+        let items = items
+
         VStack(spacing: 0) {
             // Sits above the stack; only appears once there is something to
             // do with the stack as a whole: more than one card to clear, or
             // a stack that was dragged away and can go back home.
-            if monitor.actions.count > 1 || (isMoved && !monitor.actions.isEmpty) {
+            if items.count > 1 || (isMoved && !items.isEmpty) {
                 HStack(spacing: 6) {
                     Spacer()
                     if isMoved {
@@ -59,9 +105,9 @@ struct PopupView: View {
                         .hitRegion("go-home")
                         .transition(.opacity)
                     }
-                    if monitor.actions.count > 1 {
-                        Button("Clear all \(monitor.actions.count)") {
-                            monitor.dismissAll()
+                    if items.count > 1 {
+                        Button("Clear all \(items.count)") {
+                            clearAll()
                         }
                         .buttonStyle(StackPillStyle(glass: theme == .glass))
                         .hitRegion("clear-all")
@@ -72,23 +118,13 @@ struct PopupView: View {
             }
 
             VStack(spacing: 0) {
-                ForEach(monitor.actions) { action in
-                    ActionCard(
-                        action: action,
-                        now: clock.now,
-                        isMine: isMine(action),
-                        theme: theme,
-                        showCommit: monitor.settings.showCommitMessage,
-                        onDismiss: { monitor.dismiss(action.key) },
-                        onOpen: { onOpen(action.url) },
-                        onCancel: { Task { await monitor.cancel(action.key) } },
-                        onDrag: onDrag
-                    )
-                    .hitRegion(action.key)
-                    // The padding doubles as the gap between cards and as
-                    // breathing room for the card's shadow.
-                    .padding(EdgeInsets(top: 6, leading: 16, bottom: 10, trailing: 16))
-                    .transition(.cardSlide(distance: 34, scale: 0.96, blur: 2))
+                ForEach(items) { item in
+                    card(item)
+                        .hitRegion(item.id)
+                        // The padding doubles as the gap between cards and as
+                        // breathing room for the card's shadow.
+                        .padding(EdgeInsets(top: 6, leading: 16, bottom: 10, trailing: 16))
+                        .transition(.cardSlide(distance: 34, scale: 0.96, blur: 2))
                 }
             }
             .padding(.top, 10)
@@ -97,15 +133,55 @@ struct PopupView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .coordinateSpace(name: "popup")
-        .animation(slide, value: monitor.actions.map(\.key))
+        .animation(slide, value: items.map(\.id))
         .animation(slide, value: isMoved)
         .onPreferenceChange(HitRegionKey.self) { rects in
             Task { @MainActor in regions.rects = rects }
         }
-        .onChange(of: monitor.actions.isEmpty, initial: true) { _, empty in
+        .onChange(of: items.isEmpty, initial: true) { _, empty in
             clock.setRunning(!empty)
         }
         .onDisappear { clock.setRunning(false) }
+    }
+
+    @ViewBuilder
+    private func card(_ item: StackItem) -> some View {
+        switch item {
+        case .run(let action):
+            ActionCard(
+                action: action,
+                now: clock.now,
+                isMine: isMine(action),
+                theme: theme,
+                showCommit: monitor.settings.showCommitMessage,
+                onDismiss: { monitor.dismiss(action.key) },
+                onOpen: { onOpen(action.url) },
+                onCancel: { Task { await monitor.cancel(action.key) } },
+                onDrag: onDrag
+            )
+
+        case .card(let card):
+            ExternalCardView(
+                card: card,
+                now: clock.now,
+                theme: theme,
+                showsHover: card.key == hoverPreview,
+                onOpen: { cards.open(card.key) },
+                onAction: { cards.perform($0, on: card.key) },
+                onDismiss: { cards.dismiss(card.key) },
+                onHover: { cards.setHovering(card.key, $0) },
+                onDrag: onDrag
+            )
+        }
+    }
+
+    /// Clears what the stack shows. Runs the stack is not showing - the
+    /// window has them - are not the stack's to clear.
+    private func clearAll() {
+        if scope.includesRuns {
+            monitor.dismissAll()
+        }
+        cards.dismissAll()
     }
 
     /// The stack has been dragged away from its home in the top-right corner.
@@ -120,6 +196,7 @@ struct PopupView: View {
 private struct StackPillStyle: ButtonStyle {
     let glass: Bool
     @State private var hovering = false
+    @Environment(\.drawnGlass) private var drawnGlass
 
     func makeBody(configuration: Configuration) -> some View {
         let label = configuration.label
@@ -129,7 +206,7 @@ private struct StackPillStyle: ButtonStyle {
             .padding(.horizontal, 10)
 
         return Group {
-            if #available(macOS 26, *), glass {
+            if #available(macOS 26, *), glass, !drawnGlass {
                 // The same glass as the cards, as a small system-style pill.
                 label.glassEffect(.regular.interactive(), in: Capsule())
             } else {

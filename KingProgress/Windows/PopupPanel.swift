@@ -60,6 +60,10 @@ final class PopupController {
     private let panel = PopupPanel()
     private let regions = HitRegions()
     private let settings: AppSettings
+    private let cards: ExternalCards
+    /// Which cards the stack shows; the app delegate keeps it in step with
+    /// the window.
+    let scope = StackScope()
     private(set) var isShowing = false
     private var interactive = false
     /// Where the cursor and the panel were when the current drag began.
@@ -70,9 +74,10 @@ final class PopupController {
     private var hideWork: DispatchWorkItem?
     private var screenObserver: NSObjectProtocol?
 
-    init(monitor: RunMonitor, openURL: @escaping (URL) -> Void) {
+    init(monitor: RunMonitor, cards: ExternalCards, openURL: @escaping (URL) -> Void) {
         settings = monitor.settings
-        let root = PopupView(monitor: monitor, regions: regions, onOpen: openURL, onDrag: { [weak self] in self?.handleDrag($0) })
+        self.cards = cards
+        let root = PopupView(monitor: monitor, cards: cards, scope: scope, regions: regions, onOpen: openURL, onDrag: { [weak self] in self?.handleDrag($0) })
         let hosting = FirstMouseHostingView(rootView: root)
         hosting.wantsLayer = true
         hosting.layer?.backgroundColor = .clear
@@ -316,6 +321,9 @@ final class PopupController {
             startWatchdog()
         } else {
             stopWatchdog()
+            // The cursor is on no card at all, so no card should still be
+            // waiting for it to leave.
+            cards.resumeAll()
         }
     }
 

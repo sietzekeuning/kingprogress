@@ -21,6 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let settings = AppSettings()
     private(set) lazy var monitor = RunMonitor(settings: settings)
     let clipboard = ClipboardWatcher()
+    /// Cards other apps put in the stack, and the socket they come in on.
+    let cards = ExternalCards()
+    private lazy var cardServer = CardServer(cards: cards)
 
     /// Sparkle: checks the appcast every six hours, downloads a newer build in
     /// the background and installs it on quit (or on "Restart to update").
@@ -29,13 +32,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
     private var mainWindow: MainWindow?
     private let fitter = WindowFitter()
-    private lazy var popup = PopupController(monitor: monitor) { [weak self] url in self?.openGitHub(url) }
+    private lazy var popup = PopupController(monitor: monitor, cards: cards) { [weak self] url in self?.openGitHub(url) }
     private var snapshotWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installStatusItem()
 
         monitor.onActionsChanged = { [weak self] in self?.syncPopup() }
+        cards.onChanged = { [weak self] in self?.syncPopup() }
         monitor.onTokenRevoked = { [weak self] in self?.showMainWindow() }
 
         // Re-apply every launch, not just the first: an update, a move to a
@@ -46,9 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let environment = ProcessInfo.processInfo.environment
 
         if let path = environment["KINGPROGRESS_SNAPSHOT"] {
-            snapshot(kind: environment["KINGPROGRESS_SNAPSHOT_KIND"] ?? "window", to: path)
+            let theme = environment["KINGPROGRESS_SNAPSHOT_THEME"].flatMap(CardTheme.init(rawValue:))
+            snapshot(kind: environment["KINGPROGRESS_SNAPSHOT_KIND"] ?? "window", theme: theme, to: path)
             return
         }
+
+        followCardSetting()
 
         if environment["KINGPROGRESS_DEBUG"] != nil {
             Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
@@ -63,6 +70,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if environment["KINGPROGRESS_DEMO"] == "1" {
             log("demo mode")
             monitor.startDemo()
+            if settings.showExternalCards {
+                cards.startDemo()
+            }
             return
         }
 
@@ -83,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         monitor.stop()
         clipboard.stop()
+        cardServer.stop()
         popup.hide()
     }
 
@@ -197,7 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         mainWindow?.makeKeyAndOrderFront(nil)
-        syncPopup()
+        syncPopup(windowChanged: true)
     }
 
     private var mainWindowIsShowing: Bool {
@@ -219,20 +230,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowDidDeminiaturize(_ notification: Notification) {
-        syncPopup()
+        syncPopup(windowChanged: true)
     }
 
     // MARK: - Cards
 
     /// The window and the cards show the same runs, so having both on screen
     /// is just the same information twice. The window wins while it is open.
-    private func syncPopup() {
-        if mainWindowIsShowing {
-            popup.hide()
-        } else if !monitor.actions.isEmpty {
+    /// Cards from other apps are not in the window, so they stay: while the
+    /// window is open, the stack shows only those.
+    private func syncPopup(windowChanged: Bool = false) {
+        let windowOpen = mainWindowIsShowing
+        popup.scope.includesRuns = !windowOpen
+
+        if !cards.items.isEmpty || (!windowOpen && !monitor.actions.isEmpty) {
             popup.show()
+        } else if windowOpen, windowChanged {
+            // The window just came up over a stack of runs: it takes over
+            // from them at once rather than watching them slide away.
+            popup.hide()
         } else {
             popup.hideWhenSettled()
+        }
+    }
+
+    /// Listens on the card socket while "Show cards from other apps" is on.
+    /// Switched off, the socket closes, which takes every client's cards
+    /// with it.
+    private func followCardSetting() {
+        let on = withObservationTracking {
+            settings.showExternalCards
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.followCardSetting() }
+        }
+
+        if on {
+            cardServer.start()
+        } else {
+            cardServer.stop()
+            cards.removeAll()
         }
     }
 
@@ -263,10 +299,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// renders a view into a window, writes it to that path and quits, which
     /// is how the screenshots in the README are made. Screen recording
     /// permission is not needed, which a screenshot would be.
-    /// `KINGPROGRESS_SNAPSHOT_KIND` picks window (default), settings, login or popup.
-    private func snapshot(kind: String, to path: String) {
+    /// `KINGPROGRESS_SNAPSHOT_KIND` picks window (default), settings, login or popup;
+    /// `KINGPROGRESS_SNAPSHOT_THEME` draws the cards as classic or glass
+    /// without changing the setting.
+    private func snapshot(kind: String, theme: CardTheme?, to path: String) {
         NSApp.appearance = NSAppearance(named: .darkAqua)
+        if let theme {
+            settings.previewCardTheme(theme)
+        }
         monitor.startDemo(account: Account(login: "octocat", name: "The Octocat", avatarUrl: "", scopes: ["repo", "workflow"]))
+        // Runs and cards from other apps, mixed, as the stack shows them.
+        cards.startDemo()
 
         let window = SnapshotWindow(contentRect: NSRect(x: 0, y: 0, width: MainView.width, height: 10), styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
@@ -286,9 +329,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             root = AnyView(MainView(monitor: monitor, updates: updates, openURL: openURL, fit: fit, initialShowSettings: true))
         case "popup":
             root = AnyView(
-                PopupView(monitor: monitor, regions: HitRegions(), onOpen: openURL)
-                    .frame(width: PopupController.width + PopupController.margin * 2, height: 560)
-                    .background(Color(hex: 0x1b2028))
+                PopupView(monitor: monitor, cards: cards, scope: StackScope(), regions: HitRegions(), onOpen: openURL, hoverPreview: ExternalCards.demoHoverKey)
+                    .frame(width: PopupController.width + PopupController.margin * 2, height: Self.popupSnapshotHeight)
+                    .background(SnapshotBackdrop(glass: settings.cardTheme == .glass))
+                    .environment(\.drawnGlass, true)
             )
         default:
             root = AnyView(MainView(monitor: monitor, updates: updates, openURL: openURL, fit: fit))
@@ -297,7 +341,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let width = kind == "popup" ? PopupController.width + PopupController.margin * 2 : MainView.width
         embed(root.frame(width: width).ignoresSafeArea().preferredColorScheme(.dark), in: window)
         if kind == "popup" {
-            window.setContentSize(NSSize(width: width, height: 560))
+            window.setContentSize(NSSize(width: width, height: Self.popupSnapshotHeight))
         }
         window.center()
         window.orderFront(nil)
@@ -325,8 +369,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    /// Tall enough for the demo's three runs and four cards from other apps.
+    private static let popupSnapshotHeight: CGFloat = 1000
+
     private func log(_ message: String) {
         FileHandle.standardError.write(Data("[kingprogress] \(message)\n".utf8))
+    }
+}
+
+/// What the popup snapshot is taken over. Classic cards sit on a plain dark
+/// desktop. Glass needs something behind it to be glass over, so it gets a
+/// dark window and a light one with a splash of colour, like any desktop.
+private struct SnapshotBackdrop: View {
+    let glass: Bool
+
+    var body: some View {
+        if glass {
+            ZStack(alignment: .topLeading) {
+                Color(hex: 0x2b3445)
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(hex: 0x1c1c1f))
+                    .frame(width: 240, height: 860)
+                    .offset(x: -40, y: 72)
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white)
+                    .frame(width: 260, height: 860)
+                    .offset(x: 200, y: 72)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(hex: 0xff5a5f))
+                    .frame(width: 200, height: 120)
+                    .offset(x: 228, y: 220)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(hex: 0x34c77b))
+                    .frame(width: 200, height: 90)
+                    .offset(x: 228, y: 560)
+            }
+        } else {
+            Color(hex: 0x1b2028)
+        }
     }
 }
 

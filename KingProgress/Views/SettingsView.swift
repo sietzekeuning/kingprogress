@@ -325,6 +325,25 @@ struct SettingsView: View {
                 : "Cards show only the workflow and branch.")
 
             HStack(spacing: 10) {
+                Text("Show cards from other apps")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.text)
+                Spacer()
+                SwitchView(on: settings.showExternalCards)
+            }
+            .padding(.top, 14)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    settings.setShowExternalCards(!settings.showExternalCards)
+                }
+            }
+
+            note(settings.showExternalCards
+                ? "Apps like KingMail add their cards to the stack through cards.sock."
+                : "Only runs. Other apps cannot reach the stack.")
+
+            HStack(spacing: 10) {
                 Text("Position on screen")
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.text)

@@ -18,6 +18,12 @@ struct CardInk {
     var soft: Color { glass ? .secondary : Theme.muted2 }
 }
 
+extension EnvironmentValues {
+    /// Snapshots cannot capture the system's glass or its backdrop blur, so
+    /// they ask for a drawn stand-in: a tinted, see-through pane.
+    @Entry var drawnGlass = false
+}
+
 /// Dresses the content as a card. Glass is the system's own Liquid Glass
 /// where the Mac has it (macOS 26 and up), so the cards look like the rest
 /// of the system they are floating over: the OS draws the material, the rim
@@ -31,11 +37,13 @@ struct CardChrome: ViewModifier {
     /// What the edge leans towards under the cursor: the card's accent.
     let tint: Color
 
+    @Environment(\.drawnGlass) private var drawnGlass
+
     private var isGlass: Bool { theme == .glass }
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(macOS 26, *), isGlass {
+        if #available(macOS 26, *), isGlass, !drawnGlass {
             content
                 .clipShape(Self.shape)
                 .glassEffect(.regular.interactive(), in: Self.shape)
@@ -65,6 +73,8 @@ struct CardChrome: ViewModifier {
                 startPoint: .top,
                 endPoint: .bottom
             )
+        case .glass where drawnGlass:
+            Color(hex: 0x262a32, opacity: 0.52)
         case .glass:
             ZStack {
                 FrostedBackdrop()

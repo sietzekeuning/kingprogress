@@ -55,6 +55,9 @@ final class AppSettings {
     /// How far the stack of cards has been dragged from its home in the
     /// top-right corner, in screen points (x to the right, y up). Zero is home.
     private(set) var popupOffset: CGSize
+    /// Let other apps on this Mac put their own cards in the stack, through
+    /// the card socket.
+    private(set) var showExternalCards: Bool
 
     init() {
         watchedRepos = defaults.stringArray(forKey: "watchedRepos") ?? []
@@ -68,6 +71,7 @@ final class AppSettings {
         cardTheme = defaults.string(forKey: "cardTheme").flatMap(CardTheme.init(rawValue:)) ?? .classic
         showCommitMessage = defaults.object(forKey: "showCommitMessage") as? Bool ?? true
         popupOffset = CGSize(width: defaults.double(forKey: "popupOffsetX"), height: defaults.double(forKey: "popupOffsetY"))
+        showExternalCards = defaults.object(forKey: "showExternalCards") as? Bool ?? true
     }
 
     var token: String? {
@@ -119,6 +123,17 @@ final class AppSettings {
     func setShowCommitMessage(_ enabled: Bool) {
         showCommitMessage = enabled
         defaults.set(enabled, forKey: "showCommitMessage")
+    }
+
+    /// For snapshots: draw the cards in a theme without remembering it, so
+    /// the copy of KingProgress the user runs is not switched along with it.
+    func previewCardTheme(_ theme: CardTheme) {
+        cardTheme = theme
+    }
+
+    func setShowExternalCards(_ enabled: Bool) {
+        showExternalCards = enabled
+        defaults.set(enabled, forKey: "showExternalCards")
     }
 
     func setPopupOffset(_ offset: CGSize) {
