@@ -91,7 +91,7 @@ struct CardButton {
 /// The line icons a client can ask for by name, as an action's icon or a
 /// card's glyph.
 enum CardIcon: String {
-    case archive, check, reply, open, trash, envelope, bell
+    case archive, check, reply, open, trash, spam, envelope, bell
 }
 
 /// The words a card's age is told in. A client picks one in its hello.
@@ -447,7 +447,7 @@ final class ExternalCards {
         let now = Date()
         let mailActions: [[String: Any]] = [
             ["id": "archive", "title": "Archiveren", "icon": "archive"],
-            ["id": "read", "title": "Gelezen", "icon": "check"],
+            ["id": "spam", "title": "Spam", "icon": "spam"],
             ["id": "reply", "title": "Beantwoorden", "icon": "reply"],
         ]
 

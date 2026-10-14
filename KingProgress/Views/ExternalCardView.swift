@@ -405,6 +405,11 @@ struct LineIcon: View {
             line((10, 11), (10, 16))
             line((14, 11), (14, 16))
 
+        case .spam:
+            // A ring with a slash through it, the usual "junk" sign.
+            path.addEllipse(in: CGRect(x: 3.5, y: 3.5, width: 17, height: 17))
+            line((6, 6), (18, 18))
+
         case .envelope:
             path.addRoundedRect(in: CGRect(x: 3, y: 5.5, width: 18, height: 13), cornerSize: CGSize(width: 2, height: 2))
             line((3.5, 7), (12, 13), (20.5, 7))

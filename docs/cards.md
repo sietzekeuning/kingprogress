@@ -69,7 +69,7 @@ known field of the wrong type.
 | `rows`       | array of `{"title", "subtitle", "avatar"}` | Short rows under the title, for a summary card. At most 4 are shown; the row avatar is 16 points. |
 | `caption`    | string                                    | Small line at the bottom left, such as the account. |
 | `captionDot` | `"#RRGGBB"`                               | A dot in this colour before the caption. |
-| `actions`    | array of `{"id", "title", "icon"}`        | Buttons at the bottom right, shown while the cursor is on the card. At most 3. `icon`: `archive`, `check`, `reply`, `open` or `trash`. |
+| `actions`    | array of `{"id", "title", "icon"}`        | Buttons at the bottom right, shown while the cursor is on the card. At most 3. `icon`: `archive`, `check`, `reply`, `open`, `trash` or `spam`. |
 | `strip`      | `{"text", "detail", "button": {"id", "title"}}` | Makes the card a single line: a green check, `text`, `detail` and a filled button. For an undo after an action. |
 | `linger`     | number                                    | Seconds before the card leaves on its own. Default 20; `0` keeps it until it is dismissed or removed. |
 | `help`       | string                                    | Tooltip on the card. |
