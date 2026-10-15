@@ -54,8 +54,9 @@ private enum StackItem: Identifiable {
     }
 }
 
-/// The stack of cards in the top-right corner of the screen. Nothing outside
-/// the cards themselves is painted: the panel is transparent.
+/// The stack of cards in the top-right or bottom-right corner of the screen.
+/// Nothing outside the cards themselves is painted: the panel is
+/// transparent.
 struct PopupView: View {
     let monitor: RunMonitor
     let cards: ExternalCards
@@ -84,8 +85,15 @@ struct PopupView: View {
 
     var body: some View {
         let items = items
+        let atTop = corner.isTop
 
+        // The same stack in either corner, newest card on top; in the bottom
+        // right it is pushed down until its oldest card sits above the Dock.
         VStack(spacing: 0) {
+            if !atTop {
+                Spacer(minLength: 0)
+            }
+
             // Sits above the stack; only appears once there is something to
             // do with the stack as a whole: more than one card to clear, or
             // a stack that was dragged away and can go back home.
@@ -96,12 +104,12 @@ struct PopupView: View {
                         Button {
                             monitor.settings.setPopupOffset(.zero)
                         } label: {
-                            Image(systemName: "arrow.up.right")
+                            Image(systemName: atTop ? "arrow.up.right" : "arrow.down.right")
                                 .font(.system(size: 9.5, weight: .bold))
                                 .frame(height: 13)
                         }
                         .buttonStyle(StackPillStyle(glass: theme == .glass))
-                        .help("Back to the top right")
+                        .help("Back to the \(corner.label.lowercased())")
                         .hitRegion("go-home")
                         .transition(.opacity)
                     }
@@ -128,13 +136,21 @@ struct PopupView: View {
                 }
             }
             .padding(.top, 10)
+            // The same 16 points between the bottom card and the edge of the
+            // screen as between the top one and the menu bar.
+            .padding(.bottom, atTop ? 0 : 6)
 
-            Spacer(minLength: 0)
+            if atTop {
+                Spacer(minLength: 0)
+            }
         }
+        // A stack too tall for the screen runs off the bottom, in either
+        // corner: the newest cards and Clear all stay in sight.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .coordinateSpace(name: "popup")
         .animation(slide, value: items.map(\.id))
         .animation(slide, value: isMoved)
+        .animation(slide, value: corner)
         .onPreferenceChange(HitRegionKey.self) { rects in
             Task { @MainActor in regions.rects = rects }
         }
@@ -184,7 +200,10 @@ struct PopupView: View {
         cards.dismissAll()
     }
 
-    /// The stack has been dragged away from its home in the top-right corner.
+    /// The corner the stack calls home.
+    private var corner: StackCorner { monitor.settings.stackCorner }
+
+    /// The stack has been dragged away from its home in its corner.
     private var isMoved: Bool { monitor.settings.popupOffset != .zero }
 
     private func isMine(_ action: TrackedRun) -> Bool {
