@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// The transparent, click-through column pinned to the top-right of the
-/// screen that the cards live in. Nothing but the cards is ever painted, so
+/// The transparent, click-through column pinned to the top-right (or the
+/// bottom-right) of the screen that the cards live in. Nothing but the cards is ever painted, so
 /// the panel always fits the content exactly and the cards are free to
 /// animate in and out beyond their own bounds.
 final class PopupPanel: NSPanel {
@@ -52,7 +52,8 @@ private final class FirstMouseHostingView<Content: View>: NSHostingView<Content>
 final class PopupController {
     static let width: CGFloat = 384
     static let margin: CGFloat = 16
-    /// How much of the top of the column has to stay on screen: about a card.
+    /// How much of the column has to stay on screen, at the end the cards
+    /// are at: about a card.
     private static let keepVisible: CGFloat = 150
     /// Dropped this close to home, the stack goes home.
     private static let snap: CGFloat = 14
@@ -104,11 +105,13 @@ final class PopupController {
         }
     }
 
-    /// The stack was put back home from the settings (or moved by anything
-    /// else that is not a drag): go where it says.
+    /// The stack was put back home or given another corner from the
+    /// settings (or moved by anything else that is not a drag): go where it
+    /// says.
     private func followOffset() {
         withObservationTracking {
             _ = settings.popupOffset
+            _ = settings.stackCorner
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -134,35 +137,48 @@ final class PopupController {
         return CGSize(width: Self.width + Self.margin * 2, height: max(240, area.height - Self.margin))
     }
 
-    /// The panel's top-left corner when nobody has moved it: the top-right
-    /// of the primary display.
+    /// Whether the cards sit at the top of the panel or at its bottom.
+    private var atTop: Bool { settings.stackCorner.isTop }
+
+    /// Where the panel is held: the corner on the side the cards are on,
+    /// its top-left for a stack in the top right and its bottom-left for
+    /// one in the bottom right.
+    private func anchor(of frame: NSRect) -> CGPoint {
+        CGPoint(x: frame.minX, y: atTop ? frame.maxY : frame.minY)
+    }
+
+    /// The panel's anchor when nobody has moved it: the chosen corner of the
+    /// primary display.
     private var home: CGPoint {
         let area = homeScreen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        return CGPoint(x: (area.maxX - size.width).rounded(), y: area.maxY.rounded())
+        return CGPoint(x: (area.maxX - size.width).rounded(), y: (atTop ? area.maxY : area.minY).rounded())
     }
 
     private func bounds() -> NSRect {
         let offset = settings.popupOffset
-        return frame(topLeft: CGPoint(x: home.x + offset.width, y: home.y + offset.height))
+        return frame(anchor: CGPoint(x: home.x + offset.width, y: home.y + offset.height))
     }
 
-    /// The panel with its top-left corner as close to `topLeft` as the
-    /// screen it is on allows. The panel never changes size, so dragged down
-    /// it hangs off the bottom of the screen; it is transparent and
-    /// click-through there, and the cards are at its top. What is kept on
-    /// screen is the top of the column, with room for a card.
-    private func frame(topLeft: CGPoint) -> NSRect {
+    /// The panel with its anchor as close to `anchor` as the screen it is on
+    /// allows. The panel never changes size, so dragged away from its own
+    /// corner it hangs off the other edge of the screen; it is transparent
+    /// and click-through there, and the cards are at the anchored end. What
+    /// is kept on screen is that end of the column, with room for a card.
+    private func frame(anchor: CGPoint) -> NSRect {
         let size = size
-        let probe = CGPoint(x: topLeft.x + size.width / 2, y: topLeft.y - 1)
+        let probe = CGPoint(x: anchor.x + size.width / 2, y: atTop ? anchor.y - 1 : anchor.y + 1)
         let screen = NSScreen.screens.first { $0.frame.contains(probe) } ?? nearestScreen(to: probe) ?? homeScreen
-        var corner = topLeft
+        var corner = anchor
 
         if let area = screen?.visibleFrame {
             corner.x = min(max(corner.x, area.minX), area.maxX - size.width)
-            corner.y = min(max(corner.y, area.minY + Self.keepVisible), area.maxY)
+            corner.y = atTop
+                ? min(max(corner.y, area.minY + Self.keepVisible), area.maxY)
+                : min(max(corner.y, area.minY), area.maxY - Self.keepVisible)
         }
 
-        return NSRect(x: corner.x.rounded(), y: (corner.y - size.height).rounded(), width: size.width, height: size.height)
+        let bottom = atTop ? corner.y - size.height : corner.y
+        return NSRect(x: corner.x.rounded(), y: bottom.rounded(), width: size.width, height: size.height)
     }
 
     private func nearestScreen(to point: CGPoint) -> NSScreen? {
@@ -183,20 +199,20 @@ final class PopupController {
     private func handleDrag(_ phase: StackDragPhase) {
         switch phase {
         case .began(let mouse):
-            let frame = panel.frame
-            drag = (mouse, CGPoint(x: frame.minX, y: frame.maxY))
+            drag = (mouse, anchor(of: panel.frame))
 
         case .moved:
             guard let drag else { return }
             let mouse = NSEvent.mouseLocation
             let target = CGPoint(x: drag.origin.x + mouse.x - drag.mouse.x, y: drag.origin.y + mouse.y - drag.mouse.y)
-            panel.setFrame(frame(topLeft: target), display: false)
+            panel.setFrame(frame(anchor: target), display: false)
 
         case .ended:
             guard drag != nil else { return }
             drag = nil
 
-            var offset = CGSize(width: panel.frame.minX - home.x, height: panel.frame.maxY - home.y)
+            let dropped = anchor(of: panel.frame)
+            var offset = CGSize(width: dropped.x - home.x, height: dropped.y - home.y)
             // Dropped about where it came from: that is home.
             if abs(offset.width) < Self.snap, abs(offset.height) < Self.snap {
                 offset = .zero

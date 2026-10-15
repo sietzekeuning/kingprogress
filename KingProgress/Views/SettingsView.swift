@@ -344,11 +344,35 @@ struct SettingsView: View {
                 : "Only runs. Other apps cannot reach the stack.")
 
             HStack(spacing: 10) {
+                Text("Corner of the screen")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.text)
+                Spacer()
+                HStack(spacing: 3) {
+                    ForEach(StackCorner.allCases, id: \.self) { corner in
+                        Button(corner.label) {
+                            settings.setStackCorner(corner)
+                        }
+                        .buttonStyle(SegmentStyle(on: settings.stackCorner == corner))
+                    }
+                }
+                .padding(3)
+                .background(RoundedRectangle(cornerRadius: 9).fill(Theme.panel))
+                .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.border))
+                .frame(width: 200)
+            }
+            .padding(.top, 14)
+
+            note(settings.stackCorner.isTop
+                ? "Under the menu bar, with the newest card on top."
+                : "Above the Dock, out of the way of notifications. The newest card is still on top.")
+
+            HStack(spacing: 10) {
                 Text("Position on screen")
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.text)
                 Spacer()
-                Button("Back to the top right") {
+                Button("Back to the \(settings.stackCorner.label.lowercased())") {
                     settings.setPopupOffset(.zero)
                 }
                 .buttonStyle(GhostButtonStyle(small: true))

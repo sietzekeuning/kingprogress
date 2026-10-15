@@ -28,6 +28,25 @@ enum CardTheme: String, CaseIterable, Codable {
     }
 }
 
+/// The corner of the screen the stack of cards calls home. Top right is
+/// where it has always been; bottom right keeps it out of the way of the
+/// system's own notification banners, which land in the top right too.
+enum StackCorner: String, CaseIterable, Codable {
+    case topRight
+    case bottomRight
+
+    var label: String {
+        switch self {
+        case .topRight: "Top right"
+        case .bottomRight: "Bottom right"
+        }
+    }
+
+    /// Whether the stack hangs from the top of the screen or stands on
+    /// its bottom. Either way the newest card is on top.
+    var isTop: Bool { self == .topRight }
+}
+
 /// Everything KingProgress remembers between launches. Plain values go to
 /// UserDefaults; the token goes to the keychain.
 @MainActor
@@ -52,8 +71,10 @@ final class AppSettings {
     private(set) var cardTheme: CardTheme
     /// Show the subject of the commit each run is building on its card.
     private(set) var showCommitMessage: Bool
-    /// How far the stack of cards has been dragged from its home in the
-    /// top-right corner, in screen points (x to the right, y up). Zero is home.
+    /// Which corner of the screen the stack of cards calls home.
+    private(set) var stackCorner: StackCorner
+    /// How far the stack of cards has been dragged from its home in
+    /// `stackCorner`, in screen points (x to the right, y up). Zero is home.
     private(set) var popupOffset: CGSize
     /// Let other apps on this Mac put their own cards in the stack, through
     /// the card socket.
@@ -70,6 +91,7 @@ final class AppSettings {
         openAtLogin = defaults.object(forKey: "openAtLogin") as? Bool ?? true
         cardTheme = defaults.string(forKey: "cardTheme").flatMap(CardTheme.init(rawValue:)) ?? .classic
         showCommitMessage = defaults.object(forKey: "showCommitMessage") as? Bool ?? true
+        stackCorner = defaults.string(forKey: "stackCorner").flatMap(StackCorner.init(rawValue:)) ?? .topRight
         popupOffset = CGSize(width: defaults.double(forKey: "popupOffsetX"), height: defaults.double(forKey: "popupOffsetY"))
         showExternalCards = defaults.object(forKey: "showExternalCards") as? Bool ?? true
     }
@@ -134,6 +156,17 @@ final class AppSettings {
     func setShowExternalCards(_ enabled: Bool) {
         showExternalCards = enabled
         defaults.set(enabled, forKey: "showExternalCards")
+    }
+
+    /// Picking a corner sends the stack there, wherever it was dragged to:
+    /// an offset from the old corner means nothing from the new one.
+    func setStackCorner(_ corner: StackCorner) {
+        guard corner != stackCorner else {
+            return
+        }
+        stackCorner = corner
+        defaults.set(corner.rawValue, forKey: "stackCorner")
+        setPopupOffset(.zero)
     }
 
     func setPopupOffset(_ offset: CGSize) {

@@ -14,7 +14,7 @@
        alt="Ten seconds of KingProgress: signing in with a token off the clipboard, picking which repositories to watch, and three cards sliding in from the right — one passed, one running with a time-based progress bar, one failed.">
 </p>
 
-The cards live in the top-right corner, on top of whatever you are doing. They are click-through, so
+The cards live in the top-right corner (or the bottom-right, if you like), on top of whatever you are doing. They are click-through, so
 they never get in the way of the window underneath — until you move your cursor over one.
 
 | | |
@@ -26,7 +26,8 @@ they never get in the way of the window underneath — until you move your curso
 | **Sticks around** | A finished run stays for 20 seconds — green for passed, red for failed — with a thin bar draining along the bottom edge, then slides away on its own. |
 | **Click to open** | Clicking a card opens that run on GitHub in your browser. |
 | **Cancel from the card** | The stop button on a running card cancels the run on GitHub, after a quick "are you sure?" on the card itself — no dialog stealing focus. |
-| **Drag it out of the way** | Drag any card and the whole stack comes along — no window frame, just the cards. It stays where you drop it, also after a restart; the little arrow that appears next to `Clear all` sends it back home to the top-right corner. |
+| **Drag it out of the way** | Drag any card and the whole stack comes along — no window frame, just the cards. It stays where you drop it, also after a restart; the little arrow that appears next to `Clear all` sends it back home to its corner. |
+| **Top or bottom** | The stack lives in the top-right corner under the menu bar, or in the bottom-right above the Dock, out of the way of the system's notifications. The newest card is on top either way. Pick one under **Cards** in the settings. |
 | **Dismissable** | The `×` gets rid of a card immediately, and `Clear all` clears the stack. A dismissed run stays gone; the next run shows up as normal. |
 | **Yours only, if you like** | Filter runs by who triggered them, and pick exactly which repositories to watch. |
 | **Cards from other apps** | Other apps on your Mac can put their own cards in the same stack, in between the runs — KingMail shows new mail there, with buttons to archive or reply. See [Cards from other apps](#cards-from-other-apps). |
@@ -95,8 +96,8 @@ there next time. Settings shows the same thing, along with a **Check now** butto
   people. Handy on a shared repository where you do not want a card for every colleague's push.
 - **Repositories** — tick exactly which repositories to watch. Leave everything unticked and
   KingProgress follows your 5 most recently updated repositories automatically.
-- **Cards** — Classic or Glass, whether to show the commit message, and whether other apps may add
-  their cards to the stack.
+- **Cards** — Classic or Glass, whether to show the commit message, whether other apps may add
+  their cards to the stack, and whether the stack lives in the top-right or the bottom-right corner.
 - **Startup** — KingProgress starts when you log in, unless you turn that off.
 
 Watching a lot of repositories is cheap: KingProgress uses conditional requests, and GitHub does not
