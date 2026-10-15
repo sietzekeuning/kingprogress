@@ -147,16 +147,24 @@ final class PopupController {
         CGPoint(x: frame.minX, y: atTop ? frame.maxY : frame.minY)
     }
 
-    /// The panel's anchor when nobody has moved it: the chosen corner of the
+    /// The panel's anchor when nobody has moved it: that corner of the
     /// primary display.
-    private var home: CGPoint {
+    private func home(_ corner: StackCorner) -> CGPoint {
         let area = homeScreen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        return CGPoint(x: (area.maxX - size.width).rounded(), y: (atTop ? area.maxY : area.minY).rounded())
+        return CGPoint(x: (area.maxX - size.width).rounded(), y: (corner.isTop ? area.maxY : area.minY).rounded())
     }
+
+    private var home: CGPoint { home(settings.stackCorner) }
 
     private func bounds() -> NSRect {
         let offset = settings.popupOffset
         return frame(anchor: CGPoint(x: home.x + offset.width, y: home.y + offset.height))
+    }
+
+    /// The screen the cards are on with the panel held at `anchor`.
+    private func screen(holding anchor: CGPoint) -> NSScreen? {
+        let probe = CGPoint(x: anchor.x + size.width / 2, y: atTop ? anchor.y - 1 : anchor.y + 1)
+        return NSScreen.screens.first { $0.frame.contains(probe) } ?? nearestScreen(to: probe) ?? homeScreen
     }
 
     /// The panel with its anchor as close to `anchor` as the screen it is on
@@ -166,11 +174,9 @@ final class PopupController {
     /// is kept on screen is that end of the column, with room for a card.
     private func frame(anchor: CGPoint) -> NSRect {
         let size = size
-        let probe = CGPoint(x: anchor.x + size.width / 2, y: atTop ? anchor.y - 1 : anchor.y + 1)
-        let screen = NSScreen.screens.first { $0.frame.contains(probe) } ?? nearestScreen(to: probe) ?? homeScreen
         var corner = anchor
 
-        if let area = screen?.visibleFrame {
+        if let area = screen(holding: anchor)?.visibleFrame {
             corner.x = min(max(corner.x, area.minX), area.maxX - size.width)
             corner.y = atTop
                 ? min(max(corner.y, area.minY + Self.keepVisible), area.maxY)
@@ -210,16 +216,65 @@ final class PopupController {
         case .ended:
             guard drag != nil else { return }
             drag = nil
-
-            let dropped = anchor(of: panel.frame)
-            var offset = CGSize(width: dropped.x - home.x, height: dropped.y - home.y)
-            // Dropped about where it came from: that is home.
-            if abs(offset.width) < Self.snap, abs(offset.height) < Self.snap {
-                offset = .zero
-            }
-            settings.setPopupOffset(offset)
-            panel.setFrame(bounds(), display: true)
+            settle()
         }
+    }
+
+    /// Where a dropped stack belongs. The end the cards are at decides the
+    /// corner: dropped in the bottom half of the screen the stack stands on
+    /// the bottom edge, so a stack dragged down does not run off the screen;
+    /// dropped in the top half it hangs from the top. Within its own half it
+    /// stays where it was dropped, and dropped about at home it is home.
+    private func settle() {
+        let frame = panel.frame
+        let dropped = anchor(of: frame)
+        let area = screen(holding: dropped)?.visibleFrame ?? frame
+        let corner: StackCorner = dropped.y < area.midY ? .bottomRight : .topRight
+        let switching = corner != settings.stackCorner
+
+        // Into the other half, it goes all the way to that edge.
+        let target = CGPoint(x: dropped.x, y: switching ? (corner.isTop ? area.maxY : area.minY) : dropped.y)
+        let home = home(corner)
+        var offset = CGSize(width: target.x - home.x, height: target.y - home.y)
+        if abs(offset.width) < Self.snap, abs(offset.height) < Self.snap {
+            offset = .zero
+        }
+
+        guard switching, let inPlace = frameKeepingCards(for: corner, from: frame) else {
+            settings.setStackPosition(corner, offset: offset)
+            panel.setFrame(bounds(), display: true)
+            return
+        }
+
+        // The cards are about to move to the other end of the panel. The
+        // panel jumps the other way first, so they stay where they were
+        // dropped, and then glides to its new place (see followOffset),
+        // taking them along.
+        settings.setStackPosition(corner, offset: offset)
+        panel.setFrame(inPlace, display: false)
+    }
+
+    /// The panel that shows the stack, laid out for `corner`, exactly where
+    /// it is now in the panel at `frame`. From the controls above the cards
+    /// down to the last card the stack looks the same in either corner;
+    /// only the empty space moves from below it to above it.
+    private func frameKeepingCards(for corner: StackCorner, from frame: NSRect) -> NSRect? {
+        let stack = regions.rects.values.reduce(CGRect.null) { $0.union($1) }
+        guard !stack.isNull else {
+            return nil
+        }
+
+        let bottom: CGFloat
+        if corner.isTop {
+            // The controls sit 8 points under the top of the panel; without
+            // them the first card sits 16 points under it.
+            let controls = regions.rects["clear-all"] != nil || regions.rects["go-home"] != nil
+            bottom = frame.maxY - stack.minY + (controls ? 8 : 16) - frame.height
+        } else {
+            // The last card stands 16 points above the bottom of the panel.
+            bottom = frame.maxY - stack.maxY - 16
+        }
+        return NSRect(x: frame.minX, y: bottom, width: frame.width, height: frame.height)
     }
 
     /// For `KINGPROGRESS_DEBUG`: where the panel is and what it would catch.

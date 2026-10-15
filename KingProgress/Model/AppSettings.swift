@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import Observation
 
 /// How the cards are drawn. Classic is the solid GitHub-dark look the
@@ -94,8 +94,22 @@ final class AppSettings {
         openAtLogin = defaults.object(forKey: "openAtLogin") as? Bool ?? true
         cardTheme = defaults.string(forKey: "cardTheme").flatMap(CardTheme.init(rawValue:)) ?? .classic
         showCommitMessage = defaults.object(forKey: "showCommitMessage") as? Bool ?? true
-        stackCorner = defaults.string(forKey: "stackCorner").flatMap(StackCorner.init(rawValue:)) ?? .topRight
-        popupOffset = CGSize(width: defaults.double(forKey: "popupOffsetX"), height: defaults.double(forKey: "popupOffsetY"))
+        let offset = CGSize(width: defaults.double(forKey: "popupOffsetX"), height: defaults.double(forKey: "popupOffsetY"))
+        if let corner = defaults.string(forKey: "stackCorner").flatMap(StackCorner.init(rawValue:)) {
+            stackCorner = corner
+            popupOffset = offset
+        } else if offset.height < -(NSScreen.screens.first?.visibleFrame.height ?? 900) / 2 {
+            // Before there was a choice of corner, the way to the bottom of
+            // the screen was to drag the stack there, where it hung off the
+            // edge with only its newest card in sight. That stack is a
+            // bottom-right one: it stands on the bottom edge, all of it
+            // showing, and is home there.
+            stackCorner = .bottomRight
+            popupOffset = CGSize(width: offset.width, height: 0)
+        } else {
+            stackCorner = .topRight
+            popupOffset = offset
+        }
         showExternalCards = defaults.object(forKey: "showExternalCards") as? Bool ?? true
         shareRunStatus = defaults.object(forKey: "shareRunStatus") as? Bool ?? true
     }
@@ -173,13 +187,19 @@ final class AppSettings {
         guard corner != stackCorner else {
             return
         }
-        stackCorner = corner
-        defaults.set(corner.rawValue, forKey: "stackCorner")
-        setPopupOffset(.zero)
+        setStackPosition(corner, offset: .zero)
     }
 
     func setPopupOffset(_ offset: CGSize) {
+        setStackPosition(stackCorner, offset: offset)
+    }
+
+    /// The corner and the offset are stored together: an offset means
+    /// nothing without the corner it is measured from.
+    func setStackPosition(_ corner: StackCorner, offset: CGSize) {
+        stackCorner = corner
         popupOffset = offset
+        defaults.set(corner.rawValue, forKey: "stackCorner")
         defaults.set(Double(offset.width), forKey: "popupOffsetX")
         defaults.set(Double(offset.height), forKey: "popupOffsetY")
     }

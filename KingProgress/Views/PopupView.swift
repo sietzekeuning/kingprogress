@@ -147,10 +147,12 @@ struct PopupView: View {
         // A stack too tall for the screen runs off the bottom, in either
         // corner: the newest cards and Clear all stay in sight.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Another corner moves the stack to the other end of the panel at
+        // once: the panel itself is what glides (PopupController.settle).
+        .transaction(value: corner) { $0.animation = nil }
         .coordinateSpace(name: "popup")
         .animation(slide, value: items.map(\.id))
         .animation(slide, value: isMoved)
-        .animation(slide, value: corner)
         .onPreferenceChange(HitRegionKey.self) { rects in
             Task { @MainActor in regions.rects = rects }
         }
