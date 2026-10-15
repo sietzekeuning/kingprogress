@@ -58,6 +58,9 @@ final class AppSettings {
     /// Let other apps on this Mac put their own cards in the stack, through
     /// the card socket.
     private(set) var showExternalCards: Bool
+    /// Let other apps on this Mac read the status of the runs in the
+    /// watched repositories, through runs.json.
+    private(set) var shareRunStatus: Bool
 
     init() {
         watchedRepos = defaults.stringArray(forKey: "watchedRepos") ?? []
@@ -72,6 +75,7 @@ final class AppSettings {
         showCommitMessage = defaults.object(forKey: "showCommitMessage") as? Bool ?? true
         popupOffset = CGSize(width: defaults.double(forKey: "popupOffsetX"), height: defaults.double(forKey: "popupOffsetY"))
         showExternalCards = defaults.object(forKey: "showExternalCards") as? Bool ?? true
+        shareRunStatus = defaults.object(forKey: "shareRunStatus") as? Bool ?? true
     }
 
     var token: String? {
@@ -134,6 +138,11 @@ final class AppSettings {
     func setShowExternalCards(_ enabled: Bool) {
         showExternalCards = enabled
         defaults.set(enabled, forKey: "showExternalCards")
+    }
+
+    func setShareRunStatus(_ enabled: Bool) {
+        shareRunStatus = enabled
+        defaults.set(enabled, forKey: "shareRunStatus")
     }
 
     func setPopupOffset(_ offset: CGSize) {

@@ -24,6 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// Cards other apps put in the stack, and the socket they come in on.
     let cards = ExternalCards()
     private lazy var cardServer = CardServer(cards: cards)
+    /// runs.json, where other apps read how the runs are doing.
+    private let runStatus = RunStatusFile()
+    private var sharingRuns = false
 
     /// Sparkle: checks the appcast every six hours, downloads a newer build in
     /// the background and installs it on quit (or on "Restart to update").
@@ -38,7 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installStatusItem()
 
-        monitor.onActionsChanged = { [weak self] in self?.syncPopup() }
+        monitor.onActionsChanged = { [weak self] in
+            self?.syncPopup()
+            self?.shareRuns()
+        }
         cards.onChanged = { [weak self] in self?.syncPopup() }
         monitor.onTokenRevoked = { [weak self] in self?.showMainWindow() }
 
@@ -56,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         followCardSetting()
+        followShareSetting()
 
         if environment["KINGPROGRESS_DEBUG"] != nil {
             Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
@@ -94,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         monitor.stop()
         clipboard.stop()
         cardServer.stop()
+        runStatus.remove()
         popup.hide()
     }
 
@@ -269,6 +277,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             cardServer.stop()
             cards.removeAll()
+        }
+    }
+
+    /// Writes runs.json while "Share run status with other apps" is on.
+    /// Switched off, the file goes, so no app reads runs that are no
+    /// longer kept up to date.
+    private func followShareSetting() {
+        let on = withObservationTracking {
+            settings.shareRunStatus
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.followShareSetting() }
+        }
+
+        sharingRuns = on
+        if on {
+            shareRuns()
+        } else {
+            runStatus.remove()
+        }
+    }
+
+    /// Signed out there is nothing to share, and an empty file would claim
+    /// there is nothing running.
+    private func shareRuns() {
+        guard sharingRuns else {
+            return
+        }
+        if monitor.isSignedIn {
+            runStatus.write(runs: monitor.sharedRuns, account: monitor.account?.login)
+        } else {
+            runStatus.remove()
         }
     }
 

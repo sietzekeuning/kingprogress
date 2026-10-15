@@ -344,6 +344,25 @@ struct SettingsView: View {
                 : "Only runs. Other apps cannot reach the stack.")
 
             HStack(spacing: 10) {
+                Text("Share run status with other apps")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.text)
+                Spacer()
+                SwitchView(on: settings.shareRunStatus)
+            }
+            .padding(.top, 14)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    settings.setShareRunStatus(!settings.shareRunStatus)
+                }
+            }
+
+            note(settings.shareRunStatus
+                ? "Other apps can read what is running and how it ended from runs.json."
+                : "Your runs stay in KingProgress. Other apps cannot see them.")
+
+            HStack(spacing: 10) {
                 Text("Position on screen")
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.text)

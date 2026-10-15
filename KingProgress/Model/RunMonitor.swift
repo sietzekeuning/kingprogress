@@ -11,6 +11,9 @@ final class RunMonitor {
     // How long a dismissed run stays dismissed. New runs get a new key, so
     // they always come back on their own.
     private static let dismissedMemory: TimeInterval = 6 * 60 * 60
+    // How long other apps can still read a finished run once newer runs have
+    // pushed it off its repository's recent list.
+    private static let sharedLinger: TimeInterval = 60 * 60
     private static let expectedDurationCache: TimeInterval = 30 * 60 // re-measure a workflow's usual runtime twice an hour
     private static let expectedDurationSamples = 3 // take the last 3 successful runs as the yardstick
     // Idle repos cost nothing (conditional requests come back 304, which
@@ -37,6 +40,9 @@ final class RunMonitor {
 
     private var client: GitHubClient?
     private var running: [String: TrackedRun] = [:]
+    /// Every run in the watched repositories KingProgress knows about,
+    /// with a card or without one: what other apps read in runs.json.
+    private var shared: [String: TrackedRun] = [:]
     private var dismissed: [String: Date] = [:]
     private var expectedDurations: [String: (value: TimeInterval?, fetchedAt: Date)] = [:]
     private var runsCache: [String: (etag: String?, runs: [WorkflowRun])] = [:]
@@ -59,6 +65,15 @@ final class RunMonitor {
 
     var myLogin: String? {
         account?.login
+    }
+
+    /// The runs other apps may see, newest first: the recent runs of every
+    /// watched repository whether or not they have a card - dismissed,
+    /// triggered by someone the filter leaves out, or finished before
+    /// KingProgress started - and finished runs that newer ones pushed off
+    /// the list, for an hour.
+    var sharedRuns: [TrackedRun] {
+        shared.values.sorted { ($0.startedAt, $0.key) > ($1.startedAt, $1.key) }
     }
 
     private var demoAccount: Account?
@@ -122,6 +137,7 @@ final class RunMonitor {
         repoCache = nil
         runsCache.removeAll()
         running.removeAll()
+        shared.removeAll()
         dismissed.removeAll()
         stopMonitoring()
         isSignedIn = false
@@ -252,6 +268,10 @@ final class RunMonitor {
     }
 
     private func publish() {
+        // A card knows the most about its run, and keeps its last word in
+        // the shared list once it has gone: a run does not lose its clock
+        // or its expected duration because a card was dismissed.
+        shared.merge(running) { _, card in card }
         actions = running.values.sorted { $0.startedAt > $1.startedAt }
         updateLingerTimer()
         onActionsChanged?()
@@ -440,8 +460,12 @@ final class RunMonitor {
         return min(Self.pollIdle, max(Self.pollActive, Double(active) * 4))
     }
 
+    /// A card only ever starts from a run that is still going, but the
+    /// shared list also takes runs that finished before KingProgress saw
+    /// them; those get GitHub's own end time.
     private func trackedRun(key: String, repo: String, run: WorkflowRun) -> TrackedRun {
         let parts = repo.split(separator: "/", maxSplits: 1).map(String.init)
+        let finished = RunStatus(github: run.status) == .completed
 
         return TrackedRun(
             key: key,
@@ -453,13 +477,14 @@ final class RunMonitor {
             name: run.name ?? run.displayTitle ?? "Workflow run",
             branch: run.headBranch,
             event: run.event,
+            sha: run.headSha,
             commitMessage: run.commitSummary,
             status: RunStatus(github: run.status),
             conclusion: run.conclusion,
             actor: run.whoTriggered,
             startedAt: run.startedAt,
-            completedAt: nil,
-            duration: nil,
+            completedAt: finished ? run.updatedAt : nil,
+            duration: finished ? max(0, run.updatedAt.timeIntervalSince(run.startedAt)) : nil,
             expectedDuration: nil,
             currentJob: nil,
             currentStep: nil,
@@ -469,9 +494,13 @@ final class RunMonitor {
         )
     }
 
-    private func apply(_ run: WorkflowRun, to action: inout TrackedRun) {
+    /// Brings a run up to date with what GitHub says now. Returns whether
+    /// this is the poll that saw it finish.
+    @discardableResult
+    private func apply(_ run: WorkflowRun, to action: inout TrackedRun) -> Bool {
         action.name = run.name ?? run.displayTitle ?? action.name
         action.branch = run.headBranch ?? action.branch
+        action.sha = run.headSha ?? action.sha
         action.commitMessage = run.commitSummary ?? action.commitMessage
         action.actor = run.whoTriggered ?? action.actor
 
@@ -513,8 +542,10 @@ final class RunMonitor {
                 action.jobsCompleted = action.jobsTotal
             }
 
-            log("\(action.repo) \(action.name) finished: \(action.conclusion ?? "-")")
+            return true
         }
+
+        return false
     }
 
     // Typical wall-clock duration of the last few successful runs of the same
@@ -631,8 +662,8 @@ final class RunMonitor {
                 }
             }
 
-            if let run {
-                apply(run, to: &action)
+            if let run, apply(run, to: &action) {
+                log("\(action.repo) \(action.name) finished: \(action.conclusion ?? "-")")
             }
 
             if action.status != .completed {
@@ -649,13 +680,88 @@ final class RunMonitor {
             }
         }
 
+        // 3. What other apps can read.
+        await refreshShared(seen: seen, scanned: Set(repos.map(\.fullName)))
+
         pruneCompleted()
         pruneDismissed()
         publish()
 
         if verbose {
-            log("swept \(repos.count) repo(s) (\(conditionalHits) unchanged), \(seen.count) recent run(s), tracking \(running.count)")
+            log("swept \(repos.count) repo(s) (\(conditionalHits) unchanged), \(seen.count) recent run(s), tracking \(running.count), sharing \(shared.count)")
         }
+    }
+
+    /// Rebuilds the shared list from this sweep. Every recent run is in it,
+    /// card or not. A run that newer ones pushed off the recent list stays
+    /// while it is still going - asked for directly, like a card's, so it
+    /// does not read "running" forever - and for an hour once it has
+    /// finished, so an app that asks a little later still hears how it
+    /// ended. A repository that is no longer watched takes its runs along.
+    private func refreshShared(seen: [String: (run: WorkflowRun, repo: String)], scanned: Set<String>) async {
+        guard let client else {
+            return
+        }
+
+        let now = Date()
+        var next: [String: TrackedRun] = [:]
+
+        for (key, entry) in seen {
+            if let card = running[key] {
+                next[key] = card
+            } else if var known = shared[key] {
+                apply(entry.run, to: &known)
+                next[key] = withoutCard(known)
+            } else {
+                next[key] = trackedRun(key: key, repo: entry.repo, run: entry.run)
+            }
+        }
+
+        for (key, card) in running where next[key] == nil {
+            next[key] = card
+        }
+
+        for (key, known) in shared where next[key] == nil && scanned.contains(known.repo) {
+            if known.isDone {
+                if now.timeIntervalSince(known.completedAt ?? now) < Self.sharedLinger {
+                    next[key] = known
+                }
+                continue
+            }
+
+            var known = known
+            do {
+                apply(try await client.run(owner: known.owner, repo: known.repoName, runId: known.runId), to: &known)
+            } catch let error as GitHubError where error.status == 404 {
+                continue
+            } catch {
+                log("error fetching run \(known.runId) for \(known.repo): \(error.localizedDescription)")
+            }
+            next[key] = withoutCard(known)
+        }
+
+        // Signed out, or in again with another token, while GitHub was
+        // being asked: these runs are no longer anyone's to share.
+        guard self.client === client else {
+            return
+        }
+        shared = next
+    }
+
+    /// Only a card's run has its jobs polled, so without one the job and
+    /// step it was on are no longer true, nor how many jobs are done. A
+    /// finished run keeps its count: that one does not change any more.
+    private func withoutCard(_ run: TrackedRun) -> TrackedRun {
+        var run = run
+        run.currentJob = nil
+        run.currentStep = nil
+        run.cancelling = false
+        run.cancelError = nil
+        if !run.isDone {
+            run.jobsTotal = 0
+            run.jobsCompleted = 0
+        }
+        return run
     }
 
     // MARK: - Demo mode
@@ -678,10 +784,10 @@ final class RunMonitor {
         let now = Date()
         let me = myLogin ?? "octocat"
 
-        func demoRun(key: String, repo: String, name: String, branch: String, actor: String = me, status: RunStatus = .inProgress, job: String? = "test-and-deploy", step: String? = "Run actions/checkout@v4", expected: TimeInterval? = 90, jobsTotal: Int = 3, jobsCompleted: Int = 1, startedAgo: TimeInterval = 0, commit: String? = nil) -> TrackedRun {
+        func demoRun(key: String, runId: Int, sha: String, repo: String, name: String, branch: String, actor: String = me, status: RunStatus = .inProgress, job: String? = "test-and-deploy", step: String? = "Run actions/checkout@v4", expected: TimeInterval? = 90, jobsTotal: Int = 3, jobsCompleted: Int = 1, startedAgo: TimeInterval = 0, commit: String? = nil) -> TrackedRun {
             TrackedRun(
                 key: key, repo: repo, owner: String(repo.split(separator: "/")[0]), repoName: String(repo.split(separator: "/")[1]),
-                runId: 1, workflowId: 1, name: name, branch: branch, event: "push", commitMessage: commit, status: status, conclusion: nil,
+                runId: runId, workflowId: 1, name: name, branch: branch, event: "push", sha: sha, commitMessage: commit, status: status, conclusion: nil,
                 actor: actor, startedAt: now.addingTimeInterval(-startedAgo), completedAt: nil, duration: nil,
                 expectedDuration: expected, currentJob: job, currentStep: step, jobsTotal: jobsTotal, jobsCompleted: jobsCompleted,
                 url: URL(string: "https://github.com/\(repo)/actions/runs/32376222808")!
@@ -697,7 +803,7 @@ final class RunMonitor {
         }
 
         at(1) { [self] in
-            running["demo-a"] = demoRun(key: "demo-a", repo: "sietzekeuning/vvw-site", name: "CI/CD", branch: "main", status: .queued, job: nil, step: nil, commit: "Fix the newsletter form on Safari")
+            running["demo-a"] = demoRun(key: "demo-a", runId: 32376222801, sha: "4f1c2a9e8b7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b", repo: "sietzekeuning/vvw-site", name: "CI/CD", branch: "main", status: .queued, job: nil, step: nil, commit: "Fix the newsletter form on Safari")
             publish()
         }
         at(3) { [self] in
@@ -706,12 +812,12 @@ final class RunMonitor {
             publish()
         }
         at(6) { [self] in
-            running["demo-b"] = demoRun(key: "demo-b", repo: "sietzekeuning/marmaya", name: "Deploy to production", branch: "release/2026-08", actor: "octocat", job: "build-and-push-image", step: "Build and push Docker image to the registry", expected: nil, jobsTotal: 5, jobsCompleted: 2, startedAgo: 45, commit: "Bump image to PHP 8.4 and rotate the registry token")
+            running["demo-b"] = demoRun(key: "demo-b", runId: 32376222802, sha: "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b", repo: "sietzekeuning/marmaya", name: "Deploy to production", branch: "release/2026-08", actor: "octocat", job: "build-and-push-image", step: "Build and push Docker image to the registry", expected: nil, jobsTotal: 5, jobsCompleted: 2, startedAgo: 45, commit: "Bump image to PHP 8.4 and rotate the registry token")
             publish()
         }
         at(12) { finish("demo-a", "success") }
         at(16) { [self] in
-            running["demo-c"] = demoRun(key: "demo-c", repo: "sietzekeuning/pos", name: "production", branch: "master", job: "deploy", step: "Run php artisan migrate --force", expected: 352, jobsTotal: 4, jobsCompleted: 3, startedAgo: 210, commit: "Add refunds to the daily sales export")
+            running["demo-c"] = demoRun(key: "demo-c", runId: 32376222803, sha: "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2", repo: "sietzekeuning/pos", name: "production", branch: "master", job: "deploy", step: "Run php artisan migrate --force", expected: 352, jobsTotal: 4, jobsCompleted: 3, startedAgo: 210, commit: "Add refunds to the daily sales export")
             publish()
         }
         at(18) { finish("demo-b", "failure") }

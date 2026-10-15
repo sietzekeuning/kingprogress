@@ -58,6 +58,9 @@ struct TrackedRun: Identifiable, Equatable {
     var name: String
     var branch: String?
     var event: String?
+    /// The commit the run is building, which is how another app recognises
+    /// the deploy it is waiting for.
+    var sha: String?
     /// First line of the commit the run is building - what is deploying.
     var commitMessage: String?
     var status: RunStatus
@@ -150,6 +153,7 @@ struct WorkflowRun: Decodable {
     let name: String?
     let displayTitle: String?
     let headBranch: String?
+    let headSha: String?
     let event: String?
     let status: String?
     let conclusion: String?

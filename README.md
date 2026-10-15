@@ -30,6 +30,7 @@ they never get in the way of the window underneath — until you move your curso
 | **Dismissable** | The `×` gets rid of a card immediately, and `Clear all` clears the stack. A dismissed run stays gone; the next run shows up as normal. |
 | **Yours only, if you like** | Filter runs by who triggered them, and pick exactly which repositories to watch. |
 | **Cards from other apps** | Other apps on your Mac can put their own cards in the same stack, in between the runs — KingMail shows new mail there, with buttons to archive or reply. See [Cards from other apps](#cards-from-other-apps). |
+| **Run status for other apps** | KingProgress keeps the status of the runs it sees in a file other apps can read, so a script or another app can wait for the deploy of a commit without a GitHub token of its own. See [Run status for other apps](#run-status-for-other-apps). |
 | **Two looks** | Classic solid cards, or Liquid Glass like the rest of macOS 26, following the system's light or dark appearance (older versions get a frosted stand-in). Pick one under **Cards** in the settings. |
 | **Updates itself** | Sparkle checks for a new version every six hours, downloads it in the background and installs it the next time KingProgress restarts. |
 | **Light on the Mac** | Swift, AppKit and SwiftUI — no browser engine. One process that idles at zero CPU. |
@@ -95,8 +96,8 @@ there next time. Settings shows the same thing, along with a **Check now** butto
   people. Handy on a shared repository where you do not want a card for every colleague's push.
 - **Repositories** — tick exactly which repositories to watch. Leave everything unticked and
   KingProgress follows your 5 most recently updated repositories automatically.
-- **Cards** — Classic or Glass, whether to show the commit message, and whether other apps may add
-  their cards to the stack.
+- **Cards** — Classic or Glass, whether to show the commit message, whether other apps may add
+  their cards to the stack, and whether they may read the run status.
 - **Startup** — KingProgress starts when you log in, unless you turn that off.
 
 Watching a lot of repositories is cheap: KingProgress uses conditional requests, and GitHub does not
@@ -134,6 +135,24 @@ look, and KingProgress tells the app when a card or one of its buttons is clicke
 A card stays as long as the app that sent it is connected. The protocol is in [docs/cards.md](docs/cards.md);
 **Show cards from other apps** in the settings turns it off.
 
+## Run status for other apps
+
+The other way round, KingProgress tells other apps on the same Mac how the runs are doing. It keeps
+`~/Library/Application Support/KingProgress/runs.json` up to date with the recent runs of every watched
+repository: which commit each one builds, whether it is queued, running, passed or failed, when it started
+and how long it usually takes. That is every recent run, also the ones without a card, so a script can
+look up the deploy of the commit it just pushed:
+
+```bash
+jq -r --arg sha "$(git rev-parse HEAD)" '.runs[] | select(.sha == $sha) | "\(.workflow): \(.state)"' \
+    "$HOME/Library/Application Support/KingProgress/runs.json"
+```
+
+The file is replaced in one go whenever something changes, and a distributed notification,
+`com.kingprogress.app.runsChanged`, tells Mac apps when to read it again. It only exists while KingProgress
+runs and is signed in. The format is in [docs/runs.md](docs/runs.md); **Share run status with other apps**
+in the settings turns it off.
+
 ## Build it yourself
 
 Requires Xcode 15 or later and [xcodegen](https://github.com/yonaskolb/XcodeGen).
@@ -165,6 +184,7 @@ KINGPROGRESS_VERBOSE=1 $APP     # log every poll: repos swept, how many were unc
 KINGPROGRESS_DEBUG=1 $APP       # log the status item, window and card panel geometry every few seconds
 KINGPROGRESS_SNAPSHOT=/tmp/window.png KINGPROGRESS_SNAPSHOT_KIND=window $APP
 KINGPROGRESS_CARDS_SOCKET=/tmp/cards.sock $APP   # listen for cards from other apps somewhere else
+KINGPROGRESS_RUNS_FILE=/tmp/runs.json $APP       # share the run status somewhere else
 ```
 
 `KINGPROGRESS_DEMO=1` seeds a few fake workflow runs that move through queued → running → passed and
@@ -180,6 +200,7 @@ glass cards are drawn as a tinted pane there.
 - App delegate: `KingProgress/KingProgressApp.swift` — the status item, the window, the card panel
 - Polling and run state: `KingProgress/Model/RunMonitor.swift`
 - Cards from other apps: `KingProgress/Services/CardServer.swift` (the socket) and `KingProgress/Model/ExternalCards.swift` (the cards, their linger and the demo)
+- Run status for other apps: `KingProgress/Services/RunStatusFile.swift` (runs.json); which runs it lists is `sharedRuns` in `RunMonitor.swift`
 - GitHub: `KingProgress/Services/GitHubClient.swift` and `GitHubAuth.swift` — REST calls, device flow, token validation
 - Updates: `KingProgress/Services/UpdateController.swift` — Sparkle, plus the "restart to update" state
 - Views: `KingProgress/Views/` — `PopupView.swift` (the stack), `ActionCard.swift` (a run's card), `ExternalCardView.swift` (another app's card), `CardChrome.swift` (what both are made of), `MainView.swift`, `SettingsView.swift`, `LoginView.swift`
