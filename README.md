@@ -153,6 +153,9 @@ The file is replaced in one go whenever something changes, and a distributed not
 runs and is signed in. The format is in [docs/runs.md](docs/runs.md); **Share run status with other apps**
 in the settings turns it off.
 
+Connecting another app? [docs/llm.md](docs/llm.md) describes both the run status and the card socket in one
+page, written to be handed to an LLM as the brief for the integration.
+
 ## Build it yourself
 
 Requires Xcode 15 or later and [xcodegen](https://github.com/yonaskolb/XcodeGen).
